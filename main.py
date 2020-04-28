@@ -185,7 +185,7 @@ def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN, cli
 
         l = loss.item()
         total_loss += l
-        loss_log.append(i / batch_size)
+        loss_log.append(l / batch_size)
         num_instances += batch_size
         num_steps += 1
     
