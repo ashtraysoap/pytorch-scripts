@@ -80,7 +80,7 @@ def run(train_feats,
     net = Network(hidden_size=hidden_dim, output_size=vocab.n_words,
         sos_token=0, eos_token=1, pad_token=2)
     net.to(DEVICE)
-    
+
     optimizer = torch.optim.Adam(net.parameters())
     loss_function = nn.NLLLoss()
 
@@ -207,6 +207,7 @@ def evaluate(model, loss_function, data_iter, max_len=MAX_LEN):
 
 def sample(model, data_iter, vocab, samples=1, max_len=MAX_LEN):
     model.eval()
+    data_iter.shuffle = False
     samples_left = samples
     results = []
 
@@ -228,6 +229,7 @@ def sample(model, data_iter, vocab, samples=1, max_len=MAX_LEN):
         samples_left -= (i + 1)
         if samples_left == 0: break
     
+    data_iter.shuffle = True
     return results
 
 
