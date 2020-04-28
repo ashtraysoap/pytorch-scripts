@@ -2,6 +2,7 @@
 """
 
 import os
+import random
 
 import numpy as np
 import torch
@@ -15,7 +16,8 @@ class DataLoader:
         batch_size=1, 
         sources_prefix="", 
         vocab=None,
-        max_seq_len=None
+        max_seq_len=None,
+        shuffle=True
     ):
         
         captions = list(captions)
@@ -31,9 +33,18 @@ class DataLoader:
         self.batch_size = batch_size
         self.vocab = vocab
         self.max_seq_len = max_seq_len
+        self.shuffle = shuffle
         self._count = len(sources)
 
     def __iter__(self):
+        if self.shuffle == True:
+            pairs = list(zip(self.sources, self.captions))
+            random.shuffle(pairs)
+            self.sources, self.captions = [], []
+            for s, c in pairs:
+                self.sources.append(s)
+                self.captions.append(c)
+
         counter = 0
         while counter < self._count:
             upper_bound = min(self._count, counter + self.batch_size)
@@ -73,10 +84,10 @@ def _reshape(x):
     raise NotImplementedError("Incorrectly shaped array given.")
 
 if __name__ == "__main__":
-    sources = open("feats.txt").read().strip().split('\n')
-    captions = open("refs.txt", encoding='utf-8').read().strip().split('\n')
+    sources = open("data/feats.txt").read().strip().split('\n')
+    captions = open("data/refs.txt", encoding='utf-8').read().strip().split('\n')
 
-    dl = DataLoader(captions, sources, 2, "FeatsSample")
+    dl = DataLoader(captions, sources, 2, "data/FeatsSample")
     for b in dl:
         print(b[0].size())
         print(b[1])
