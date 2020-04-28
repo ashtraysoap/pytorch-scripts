@@ -90,7 +90,9 @@ def run(train_feats,
     total_instances = 0
     total_steps = 0
     train_loss_log = []
+    train_loss_log_batches = []
     val_loss_log = []
+    val_loss_log_batches = []
 
     train_data = DataLoader(captions=map(lambda x: x[0], train_data),
         sources=map(lambda x: x[1], train_data), batch_size=batch_size, 
@@ -105,7 +107,7 @@ def run(train_feats,
         print("Epoch ", e)
 
         # train one epoch
-        train_l, inst, steps, t = train_epoch(model=net, loss_function=loss_function,
+        train_l, inst, steps, t, l_log = train_epoch(model=net, loss_function=loss_function,
             optimizer=optimizer, data_iter=train_data, max_len=max_seq_len, clip_val=clip_val)
         print("Training loss:\t", train_l)
         print("Instances:\t", inst)
@@ -117,16 +119,18 @@ def run(train_feats,
         total_instances += inst
         total_steps += steps
         train_loss_log.append(train_l)
+        train_loss_log_batches += l_log
         print()
 
 
         # evaluate
-        val_l = evaluate(model=net, loss_function=loss_function, 
+        val_l, l_log = evaluate(model=net, loss_function=loss_function, 
             data_iter=val_data, max_len=max_seq_len)
         print("Validation loss: ", val_l)
         if val_l < prev_val_l:
             torch.save(net.state_dict(), os.path.join(out_dir, 'net.pt'))
         val_loss_log.append(val_l)
+        val_loss_log_batches += l_log
 
 
         #sample model
@@ -145,12 +149,10 @@ def run(train_feats,
     print("Total training steps:\t", total_steps)
     print()
 
-    with open(os.path.join(out_dir, "train_loss_log.txt"), mode='w') as tl_log:
-        for l in train_loss_log:
-            tl_log.write("{0}\n".format(l))
-    with open(os.path.join(out_dir, "val_loss_log.txt"), mode='w') as vl_log:
-        for l in val_loss_log:
-            vl_log.write("{0}\n".format(l))
+    _write_loss_log("train_loss_log.txt", out_dir, train_loss_log)
+    _write_loss_log("val_loss_log.txt", out_dir, val_loss_log)
+    _write_loss_log("train_loss_log_batches.txt", out_dir, train_loss_log_batches)
+    _write_loss_log("val_loss_log_batches.txt", out_dir, val_loss_log_batches)
 
     print("EXPERIMENT END ", time.asctime())
 
@@ -158,6 +160,7 @@ def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN, cli
     model.train()
 
     total_loss = 0
+    loss_log = []
     num_instances = 0
     num_steps = 0
     start_time = time.time()
@@ -180,18 +183,21 @@ def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN, cli
         norm = torch.nn.utils.clip_grad_norm_(model.parameters(), clip_val)
         optimizer.step()
 
-        total_loss += loss.item()
+        l = loss.item()
+        total_loss += i
+        loss_log.append(i / batch_size)
         num_instances += batch_size
         num_steps += 1
     
     epoch_time = time.time() - start_time
     f_loss = total_loss / num_instances
-    return f_loss, num_instances, num_steps, epoch_time
+    return f_loss, num_instances, num_steps, epoch_time, loss_log
 
 def evaluate(model, loss_function, data_iter, max_len=MAX_LEN):
     model.eval()
     
     loss = 0
+    loss_log = []
     num_instances = 0
 
     for batch in data_iter:
@@ -200,10 +206,12 @@ def evaluate(model, loss_function, data_iter, max_len=MAX_LEN):
         y = model(i, t, max_len=max_len)
         y = y.view(batch_size, -1, max_len)
         t = t.view(batch_size, max_len)
-        loss += loss_function(input=y, target=t).item()
+        l = loss_function(input=y, target=t).item()
+        loss += l
+        loss_log.append(l / batch_size)
         num_instances += batch_size
 
-    return loss / num_instances
+    return (loss / num_instances), loss_log
 
 def sample(model, data_iter, vocab, samples=1, max_len=MAX_LEN):
     model.eval()
@@ -232,6 +240,10 @@ def sample(model, data_iter, vocab, samples=1, max_len=MAX_LEN):
     data_iter.shuffle = True
     return results
 
+def _write_loss_log(out_f, out_dir, log):
+    with open(os.path.join(out_dir, out_f), mode='w') as f:
+        for l in log:
+            f.write("{0}\n".format(l))
 
 
 if __name__ == "__main__":
