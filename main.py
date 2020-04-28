@@ -168,7 +168,7 @@ def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN, cli
         inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
         
         optimizer.zero_grad()
-        y = model.forward(features=inputs, 
+        y = model(features=inputs, 
             targets=targets, 
             max_len=max_len)
         
@@ -197,7 +197,7 @@ def evaluate(model, loss_function, data_iter, max_len=MAX_LEN):
     for batch in data_iter:
         i, t, batch_size = batch
         i, t = i.to(DEVICE), t.to(DEVICE)
-        y = model.forward(i, t, max_len=max_len)
+        y = model(i, t, max_len=max_len)
         y = y.view(batch_size, -1, max_len)
         t = t.view(batch_size, max_len)
         loss += loss_function(input=y, target=t).item()
@@ -214,12 +214,12 @@ def sample(model, data_iter, vocab, samples=1, max_len=MAX_LEN):
     for batch in data_iter:
         inputs, targets, batch_size = batch
         inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
-        y = model.forward(inputs, None, max_len)
+        y = model(inputs, None, max_len)
         # y : [max_len, batch, vocab_dim]
         y = y.view(batch_size, max_len, -1)
         _, topi = y.topk(1, dim=2)
         # topi : [batch, max_len, 1]
-        topi = topi.view(batch_size, max_len)
+        topi = topi.detach().view(batch_size, max_len)
         # targets : [max_len, batch, 1]
         targets = targets.view(batch_size, max_len)
         for i in range(min(samples_left, batch_size)):

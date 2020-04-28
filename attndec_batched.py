@@ -20,13 +20,13 @@ class Decoder(nn.Module):
         
         self.out = nn.Linear(hidden_size, output_size)
         
-        self.softmax = nn.LogSoftmax(dim=2)
+        self.log_softmax = nn.LogSoftmax(dim=2)
 
     def forward(self, input, hidden):
         o = self.embedding(input).squeeze(dim=2)
         o = F.relu(o)
         o, h = self.gru(o, hidden)
-        o = self.softmax(self.out(o))
+        o = self.log_softmax(self.out(o))
         return o, h
 
     def initHidden(self, batch_size):
@@ -51,7 +51,7 @@ class AttentionDecoder(nn.Module):
         
         self.out = nn.Linear(hidden_size, output_size)
         
-        self.softmax = nn.LogSoftmax(dim=2)
+        self.log_softmax = nn.LogSoftmax(dim=2)
 
     def forward(self, input, hidden, encoder_output):
         """
@@ -96,7 +96,7 @@ class AttentionDecoder(nn.Module):
         # print("gru hidden ", h.size())
         o = self.out(o)
         # print("linear output projection output ", o.size())
-        o = self.softmax(o)
+        o = self.log_softmax(o)
         # print("softmax output ", o.size())
         
         a = attn_weights.squeeze(dim=1)
@@ -126,6 +126,7 @@ class Network(nn.Module):
         self.teacher_forcing_rat = teacher_forcing_rat
         self.decoder = AttentionDecoder(hidden_size, output_size, 
             encoder_dim=(14 * 14, 512))
+        self.decoder.to(device)
 
     def forward(self, features, targets=None, max_len=10):
         """
