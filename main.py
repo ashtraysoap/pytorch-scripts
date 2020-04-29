@@ -12,6 +12,8 @@ from vocab import Vocab
 
 from attndec_batched import Network
 
+import pdb
+
 MAX_LEN = 15
 HIDDEN_DIM = 512
 EPOCHS = 100
@@ -175,8 +177,8 @@ def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN, cli
             targets=targets, 
             max_len=max_len)
         
-        y = y.view(batch_size, -1, max_len)
-        targets = targets.view(batch_size, max_len)
+        y = y.permute(1, 2, 0)
+        targets = targets.squeeze(2).permute(1, 0)
         
         loss = loss_function(input=y, target=targets)
         loss.backward()
@@ -204,8 +206,8 @@ def evaluate(model, loss_function, data_iter, max_len=MAX_LEN):
         i, t, batch_size = batch
         i, t = i.to(DEVICE), t.to(DEVICE)
         y = model(i, t, max_len=max_len)
-        y = y.view(batch_size, -1, max_len)
-        t = t.view(batch_size, max_len)
+        y = y.permute(1, 2, 0)
+        t = t.squeeze(2).permute(1, 0)
         l = loss_function(input=y, target=t).item()
         loss += l
         loss_log.append(l / batch_size)
@@ -222,14 +224,15 @@ def sample(model, data_iter, vocab, samples=1, max_len=MAX_LEN):
     for batch in data_iter:
         inputs, targets, batch_size = batch
         inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
-        y = model(inputs, None, max_len)
+
+        y = model(features=inputs, targets=None, max_len=max_len)
         # y : [max_len, batch, vocab_dim]
-        y = y.view(batch_size, max_len, -1)
+        y = y.permute(1, 0, 2)
         _, topi = y.topk(1, dim=2)
         # topi : [batch, max_len, 1]
-        topi = topi.detach().view(batch_size, max_len)
+        topi = topi.detach().squeeze(2)
         # targets : [max_len, batch, 1]
-        targets = targets.view(batch_size, max_len)
+        targets = targets.squeeze(2).permute(1, 0)
         for i in range(min(samples_left, batch_size)):
             s = vocab.tensor_to_sentence(topi[i])
             t = vocab.tensor_to_sentence(targets[i])

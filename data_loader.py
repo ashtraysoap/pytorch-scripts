@@ -40,25 +40,27 @@ class DataLoader:
         if self.shuffle == True:
             pairs = list(zip(self.sources, self.captions))
             random.shuffle(pairs)
-            self.sources, self.captions = [], []
+            sources, captions = [], []
             for s, c in pairs:
-                self.sources.append(s)
-                self.captions.append(c)
+                sources.append(s)
+                captions.append(c)
+        else:
+            sources, captions = self.sources, self.captions
 
         counter = 0
         while counter < self._count:
             upper_bound = min(self._count, counter + self.batch_size)
-            srcs = self.sources[counter : upper_bound]
+            srcs = sources[counter : upper_bound]
             xs = [_load_input_data(s) for s in srcs]
             xs = [_reshape(x) for x in xs]
             xs = [torch.from_numpy(x) for x in xs]
             xs = torch.stack(xs, dim=0)
-            ys = self.captions[counter : upper_bound]
+            ys = captions[counter : upper_bound]
             num_instances = len(xs)
             if self.vocab is not None:
                 ys = [self.vocab.sentence_to_tensor(y, self.max_seq_len) for y in ys]
                 ys = torch.stack(ys, dim=0)
-                ys = ys.view(self.max_seq_len, num_instances, 1)
+                ys = ys.permute(1, 0, 2)
             yield (xs, ys, num_instances)
             counter = upper_bound
 
