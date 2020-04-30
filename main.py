@@ -159,6 +159,7 @@ def run(train_feats,
     print("EXPERIMENT END ", time.asctime())
 
 def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN, clip_val=CLIP_VAL):
+    # set the network to training mode
     model.train()
 
     total_loss = 0
@@ -196,6 +197,7 @@ def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN, cli
     return f_loss, num_instances, num_steps, epoch_time, loss_log
 
 def evaluate(model, loss_function, data_iter, max_len=MAX_LEN):
+    # set the network to evaluation mode
     model.eval()
     
     loss = 0
@@ -215,9 +217,13 @@ def evaluate(model, loss_function, data_iter, max_len=MAX_LEN):
 
     return (loss / num_instances), loss_log
 
-def sample(model, data_iter, vocab, samples=1, max_len=MAX_LEN):
+def sample(model, data_iter, vocab, samples=1, max_len=MAX_LEN, shuffle=True):
+    # set the network to evaluation mode
     model.eval()
-    data_iter.shuffle = False
+
+    if not shuffle:
+        data_iter.shuffle = False
+    
     samples_left = samples
     results = []
 
@@ -240,7 +246,9 @@ def sample(model, data_iter, vocab, samples=1, max_len=MAX_LEN):
         samples_left -= (i + 1)
         if samples_left == 0: break
     
-    data_iter.shuffle = True
+    if not shuffle:
+        data_iter.shuffle = True
+
     return results
 
 def _write_loss_log(out_f, out_dir, log):
