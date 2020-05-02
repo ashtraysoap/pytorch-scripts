@@ -34,6 +34,7 @@ def run(train_feats,
     max_seq_len=MAX_LEN,
     hidden_dim=HIDDEN_DIM,
     clip_val=CLIP_VAL,
+    checkpoint="",
     out_dir="Pytorch_Exp_Out"):
     
     print("EXPERIMENT START ", time.asctime())
@@ -81,6 +82,10 @@ def run(train_feats,
 
     net = Network(hidden_size=hidden_dim, output_size=vocab.n_words,
         sos_token=0, eos_token=1, pad_token=2)
+    
+    if checkpoint:
+        net.load_state_dict(torch.load(checkpoint))
+    
     net.to(DEVICE)
 
     optimizer = torch.optim.Adam(net.parameters())
