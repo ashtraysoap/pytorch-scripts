@@ -82,12 +82,11 @@ def run(train_feats,
 
     net = Network(hidden_size=hidden_dim, output_size=vocab.n_words,
         sos_token=0, eos_token=1, pad_token=2)
-    
+    net.to(DEVICE)
+
     if checkpoint:
         net.load_state_dict(torch.load(checkpoint))
     
-    net.to(DEVICE)
-
     optimizer = torch.optim.Adam(net.parameters())
     loss_function = nn.NLLLoss()
 
