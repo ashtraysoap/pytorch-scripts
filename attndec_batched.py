@@ -100,6 +100,9 @@ class AttentionDecoder(nn.Module):
         # print("softmax output ", o.size())
         
         a = attn_weights.squeeze(dim=1)
+        # a : [batch, enc_dim[0]]
+        # o : [1, batch, out_dim]
+        # h : ?
         return o, h, a
 
     def initHidden(self, batch_size):
@@ -140,16 +143,20 @@ class Network(nn.Module):
 
         # features : [batch, enc_seq_len, enc_dim]
         batch_size = features.size()[0]
+        enc_dim_1 = features.size()[1]
+        enc_dim_2 = features.size()[2]
         
         y = torch.tensor([[self.sos_token]] * batch_size, device=device).view(1, batch_size, 1)
         hid = self.decoder.initHidden(batch_size=batch_size)
         
         # gradually store outputs here:
         outputs = torch.zeros(max_len, batch_size, self.output_size, device=device)
+        attentions = torch.zeros(max_len, batch_size, enc_dim_1, device=device)
 
         for i in range(max_len):
             out, hid, att = self.decoder(y, hid, features)
             outputs[i] = out.squeeze(dim=0)
+            attentions[i] = att
 
             _, topi = out.topk(1)
 
@@ -159,4 +166,18 @@ class Network(nn.Module):
             else:
                 y = topi.detach()
         
-        return outputs # output logits in shape [max_len, batch, vocab]
+        return outputs, attentions # output logits in shape [max_len, batch, vocab]
+
+    def infere(self, features, max_len=10):
+        out, att = self.forward(features, targets=None, max_len=max_len)
+        out = out.permute(1, 0, 2).detach()
+        att = att.permute(1, 0, 2).detach()
+
+        _, topi = y.topk(1, dim=2)
+        # topi : [batch, max_len, 1]
+        topi = topi.squeeze(2)
+
+        return {
+            'token_ids': topi,
+            'alignments': att,
+        }
