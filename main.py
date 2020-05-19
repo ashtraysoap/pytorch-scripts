@@ -115,6 +115,8 @@ def run(train_feats,
         # train one epoch
         train_l, inst, steps, t, l_log = train_epoch(model=net, loss_function=loss_function,
             optimizer=optimizer, data_iter=train_data, max_len=max_seq_len, clip_val=clip_val)
+        
+        # epoch logs
         print("Training loss:\t", train_l)
         print("Instances:\t", inst)
         print("Steps:\t", steps)
@@ -132,6 +134,8 @@ def run(train_feats,
         # evaluate
         val_l, l_log = evaluate(model=net, loss_function=loss_function, 
             data_iter=val_data, max_len=max_seq_len)
+
+        # validation logs
         print("Validation loss: ", val_l)
         if val_l < prev_val_l:
             torch.save(net.state_dict(), os.path.join(out_dir, 'net.pt'))
@@ -146,6 +150,7 @@ def run(train_feats,
             print("Predicted:\t", s)
             print()
 
+    # Experiment summary logs.
     tot_time = time.time() - training_start_time
     hours = tot_time // 3600
     mins = (tot_time % 3600) // 60
@@ -163,6 +168,13 @@ def run(train_feats,
     print("EXPERIMENT END ", time.asctime())
 
 def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN, clip_val=CLIP_VAL):
+    """Trains the model for one epoch.
+
+    Returns:
+        The epoch loss, number of instances processed, number of optimizer 
+        steps performed, duration of the epoch, list of losses for each batch.
+    """
+
     # set the network to training mode
     model.train()
 
@@ -201,6 +213,12 @@ def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN, cli
     return f_loss, num_instances, num_steps, epoch_time, loss_log
 
 def evaluate(model, loss_function, data_iter, max_len=MAX_LEN):
+    """Computes loss on validation data.
+
+    Returns:
+        The loss on the dataset, a list of losses for each batch.
+    """
+
     # set the network to evaluation mode
     model.eval()
     
@@ -222,6 +240,12 @@ def evaluate(model, loss_function, data_iter, max_len=MAX_LEN):
     return (loss / num_instances), loss_log
 
 def sample(model, data_iter, vocab, samples=1, max_len=MAX_LEN, shuffle=True):
+    """Samples from the model.
+
+    Returns:
+        A list of tuples of target caption and generated caption.
+    """
+
     # set the network to evaluation mode
     model.eval()
 
