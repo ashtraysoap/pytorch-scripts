@@ -19,6 +19,7 @@ HIDDEN_DIM = 512
 EPOCHS = 100
 BATCH_SIZE = 4
 CLIP_VAL = 1
+TEACHER_FORCE_RAT = 0.2
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print("DEVICE:\t", DEVICE)
@@ -34,6 +35,7 @@ def run(train_feats,
     max_seq_len=MAX_LEN,
     hidden_dim=HIDDEN_DIM,
     clip_val=CLIP_VAL,
+    teacher_force=TEACHER_FORCE_RAT,
     checkpoint="",
     out_dir="Pytorch_Exp_Out"):
     
@@ -81,7 +83,7 @@ def run(train_feats,
     # 3. Initialize the network, optimizer & loss function
 
     net = Network(hidden_size=hidden_dim, output_size=vocab.n_words,
-        sos_token=0, eos_token=1, pad_token=2)
+        sos_token=0, eos_token=1, pad_token=2, teacher_forcing_rat=teacher_force)
     net.to(DEVICE)
 
     if checkpoint:
@@ -167,7 +169,8 @@ def run(train_feats,
 
     print("EXPERIMENT END ", time.asctime())
 
-def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN, clip_val=CLIP_VAL):
+def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN, 
+    clip_val=CLIP_VAL):
     """Trains the model for one epoch.
 
     Returns:
@@ -190,7 +193,7 @@ def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN, cli
         inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
         
         optimizer.zero_grad()
-        y = model(features=inputs, 
+        y, _ = model(features=inputs, 
             targets=targets, 
             max_len=max_len)
         
@@ -229,7 +232,7 @@ def evaluate(model, loss_function, data_iter, max_len=MAX_LEN):
     for batch in data_iter:
         i, t, batch_size = batch
         i, t = i.to(DEVICE), t.to(DEVICE)
-        y = model(i, t, max_len=max_len)
+        y, _ = model(i, t, max_len=max_len)
         y = y.permute(1, 2, 0)
         t = t.squeeze(2).permute(1, 0)
         l = loss_function(input=y, target=t).item()
@@ -259,7 +262,7 @@ def sample(model, data_iter, vocab, samples=1, max_len=MAX_LEN, shuffle=True):
         inputs, targets, batch_size = batch
         inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
 
-        y = model(features=inputs, targets=None, max_len=max_len)
+        y, _ = model(features=inputs, targets=None, max_len=max_len)
         # y : [max_len, batch, vocab_dim]
         y = y.permute(1, 0, 2)
         _, topi = y.topk(1, dim=2)
@@ -277,6 +280,37 @@ def sample(model, data_iter, vocab, samples=1, max_len=MAX_LEN, shuffle=True):
     if not shuffle:
         data_iter.shuffle = True
 
+    return results
+
+def infere(model, data_iter, vocab, max_len=MAX_LEN):
+    """Perform inference with the model.
+
+    Returns:
+        A list generated caption.
+    """
+
+    # set the network to evaluation mode
+    model.eval()
+ 
+    results = []
+
+    for batch in data_iter:
+        inputs, targets, batch_size = batch
+        inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
+
+        y, _ = model(features=inputs, targets=None, max_len=max_len)
+
+        # y : [max_len, batch, vocab_dim]
+        y = y.permute(1, 0, 2)
+        _, topi = y.topk(1, dim=2)
+        
+        # topi : [batch, max_len, 1]
+        topi = topi.detach().squeeze(2)
+
+        for i in range(batch_size):
+            s = vocab.tensor_to_sentence(topi[i])
+            results.append((t, s))
+    
     return results
 
 def _write_loss_log(out_f, out_dir, log):
