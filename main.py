@@ -10,12 +10,15 @@ from data_loader import DataLoader
 from prepro import normalize_strings, filter_inputs
 from vocab import Vocab
 
+import attndec_batched
 from attndec_batched import Network
 
-import pdb
 
 MAX_LEN = 15
 HIDDEN_DIM = 512
+EMB_DIM = 512
+ENC_SEQ_LEN = 14 * 14
+ENC_DIM = 512
 EPOCHS = 100
 BATCH_SIZE = 4
 CLIP_VAL = 1
@@ -26,6 +29,36 @@ print("DEVICE:\t", DEVICE)
 
 def run(train_feats, 
     train_caps, 
+    val_feats=None, 
+    val_caps=None, 
+    train_prefix="",
+    val_prefix="",
+    epochs=EPOCHS,
+    batch_size=BATCH_SIZE,
+    max_seq_len=MAX_LEN,
+    hidden_dim=HIDDEN_DIM,
+    emb_dim=EMB_DIM,
+    enc_seq_len=ENC_SEQ_LEN,
+    enc_dim=ENC_DIM,
+    clip_val=CLIP_VAL,
+    teacher_force=TEACHER_FORCE_RAT,
+    checkpoint="",
+    out_dir="Pytorch_Exp_Out",
+    decoder=1):
+
+    if decoder == 1:
+        decoder = attndec_batched.AttentionDecoder
+    elif decoder == 2:
+        decoder = attndec_batched.AttentionDecoder_2
+
+    train(train_feats, train_caps, val_feats, val_caps, train_prefix, 
+        val_prefix, epochs, batch_size, max_seq_len, hidden_dim, emb_dim,
+        enc_seq_len, enc_dim, clip_val,
+        teacher_force, checkpoint, out_dir, decoder)
+
+
+def train(train_feats, 
+    train_caps, 
     val_feats, 
     val_caps, 
     train_prefix="",
@@ -34,10 +67,14 @@ def run(train_feats,
     batch_size=BATCH_SIZE,
     max_seq_len=MAX_LEN,
     hidden_dim=HIDDEN_DIM,
+    emb_dim=EMB_DIM,
+    enc_seq_len=ENC_SEQ_LEN,
+    enc_dim=ENC_DIM,
     clip_val=CLIP_VAL,
     teacher_force=TEACHER_FORCE_RAT,
     checkpoint="",
-    out_dir="Pytorch_Exp_Out"):
+    out_dir="Pytorch_Exp_Out",
+    decoder=None):
     
     print("EXPERIMENT START ", time.asctime())
 
@@ -48,42 +85,47 @@ def run(train_feats,
 
     train_captions = open(train_caps, mode='r', encoding='utf-8') \
         .read().strip().split('\n')
-
-    val_captions = open(val_caps, mode='r', encoding='utf-8') \
-        .read().strip().split('\n')
-
     train_features = open(train_feats, mode='r').read().strip().split('\n')
-    train_features = [os.path.join(train_prefix, z) for z in train_features]
-
-    val_features = open(val_feats, mode='r').read().strip().split('\n')
-    val_features = [os.path.join(val_prefix, z) for z in val_features]
-
+    train_features = [os.path.join(train_prefix, z) for z in train_features]    
+    
     assert len(train_captions) == len(train_features)
-    assert len(val_captions) == len(val_features)
 
+    if val_caps:
+        val_captions = open(val_caps, mode='r', encoding='utf-8') \
+            .read().strip().split('\n')
+
+        val_features = open(val_feats, mode='r').read().strip().split('\n')
+        val_features = [os.path.join(val_prefix, z) for z in val_features]
+
+        assert len(val_captions) == len(val_features)
+    
     # 2. Preprocess the data
 
     train_captions = normalize_strings(train_captions)
-    val_captions = normalize_strings(val_captions)
-
     train_data = list(zip(train_captions, train_features))
-    val_data = list(zip(val_captions, val_features))
-
     train_data = filter_inputs(train_data)
-    val_data = filter_inputs(val_data)
+    print("Total training instances: ", len(train_data))
 
+    if val_caps:
+        val_captions = normalize_strings(val_captions)
+        val_data = list(zip(val_captions, val_features))
+        val_data = filter_inputs(val_data)
+        print("Total validation instances: ", len(val_data))
+    
     vocab = Vocab()
     vocab.build_vocab(map(lambda x: x[0], train_data), max_size=10000)
     vocab.save(path=os.path.join(out_dir, 'vocab.txt'))
-
-    print("Total training instances: ", len(train_data))
-    print("Total validation instances: ", len(val_data))
     print("Vocabulary size: ", vocab.n_words)
 
     # 3. Initialize the network, optimizer & loss function
 
-    net = Network(hidden_size=hidden_dim, output_size=vocab.n_words,
-        sos_token=0, eos_token=1, pad_token=2, teacher_forcing_rat=teacher_force)
+    net = Network(hid_dim=hidden_dim, out_dim=vocab.n_words,
+        sos_token=0, eos_token=1, pad_token=2,
+        teacher_forcing_rat=teacher_force,
+        emb_dim=emb_dim,
+        enc_seq_len=enc_seq_len,
+        enc_dim=enc_dim,
+        decoder=decoder)
     net.to(DEVICE)
 
     if checkpoint:
@@ -105,9 +147,11 @@ def run(train_feats,
     train_data = DataLoader(captions=map(lambda x: x[0], train_data),
         sources=map(lambda x: x[1], train_data), batch_size=batch_size, 
         vocab=vocab, max_seq_len=max_seq_len)
-    val_data = DataLoader(captions=map(lambda x: x[0], val_data),
-        sources=map(lambda x: x[1], val_data), batch_size=batch_size, 
-        vocab=vocab, max_seq_len=max_seq_len)
+
+    if val_caps:
+        val_data = DataLoader(captions=map(lambda x: x[0], val_data),
+            sources=map(lambda x: x[1], val_data), batch_size=batch_size, 
+            vocab=vocab, max_seq_len=max_seq_len)
 
     training_start_time = time.time()
 
@@ -134,15 +178,16 @@ def run(train_feats,
 
 
         # evaluate
-        val_l, l_log = evaluate(model=net, loss_function=loss_function, 
-            data_iter=val_data, max_len=max_seq_len)
+        if val_caps:
+            val_l, l_log = evaluate(model=net, loss_function=loss_function, 
+                data_iter=val_data, max_len=max_seq_len)
 
-        # validation logs
-        print("Validation loss: ", val_l)
-        if val_l < prev_val_l:
-            torch.save(net.state_dict(), os.path.join(out_dir, 'net.pt'))
-        val_loss_log.append(val_l)
-        val_loss_log_batches += l_log
+            # validation logs
+            print("Validation loss: ", val_l)
+            if val_l < prev_val_l:
+                torch.save(net.state_dict(), os.path.join(out_dir, 'net.pt'))
+            val_loss_log.append(val_l)
+            val_loss_log_batches += l_log
 
 
         #sample model
@@ -163,9 +208,11 @@ def run(train_feats,
     print()
 
     _write_loss_log("train_loss_log.txt", out_dir, train_loss_log)
-    _write_loss_log("val_loss_log.txt", out_dir, val_loss_log)
     _write_loss_log("train_loss_log_batches.txt", out_dir, train_loss_log_batches)
-    _write_loss_log("val_loss_log_batches.txt", out_dir, val_loss_log_batches)
+
+    if val_caps:
+        _write_loss_log("val_loss_log.txt", out_dir, val_loss_log)
+        _write_loss_log("val_loss_log_batches.txt", out_dir, val_loss_log_batches)
 
     print("EXPERIMENT END ", time.asctime())
 
