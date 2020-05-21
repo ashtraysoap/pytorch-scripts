@@ -1,62 +1,15 @@
 import random
-
+import pdb
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from attentions import AdditiveAttention
+from layers import DeepOutputLayer
+
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-class AdditiveAttention(nn.Module):
-
-    def __init__(self, dim_k, dim_q, dropout_p=0.1):
-        """Creates an additive attention layer.
-
-        Args:
-            dim_k: Dimension of the key.
-            dim_q: Dimension of the query.
-        """
-
-        super(AdditiveAttention, self).__init__()
-        self.linear_key = nn.Linear(dim_k, 1)
-        self.linear_query = nn.Linear(dim_q, 1)
-        self.dropout = nn.Dropout(p=dropout_p)
-        self.softmax = nn.Softmax(dim=1)
-
-    def forward(self, Q, K, V):
-        """Computes the additive attention function.
-
-        Args:
-            Q: queries of shape [batch, dim_q]
-            K: keys of shape [batch, n_keys, dim_k]
-            V: values of shape [batch, n_keys, dim_v]
-        """
-        
-        n_keys = K.size()[1]
-        tk = self.linear_key(K)                 # tk: [batch, n_keys, 1]
-        tq = self.linear_query(Q)               # tq: [batch, 1]
-        tq = tq.expand(-1, n_keys)              # tq: [batch, n_keys]
-        tq = tq.unsqueeze(2)                    # tq: [batch, n_keys, 1]
-        weights = self.softmax(tk + tq)
-        weights = weights.permute(0, 2, 1)      # weights: [batch, 1, n_keys]
-        output = torch.bmm(weights, V)          # output: [batch, 1, dim_v]
-        
-        weights = weights.squeeze(1)
-        output = output.squeeze(1)
-        return output, weights
-
-
-
-class DotProductAttention(nn.Module):
-
-    def __init__(self):
-        pass
-
-    def forward(self, Q, K, V):
-
-    
-        weights = F.softmax(None, dim=1)
-
-        return
 
 class Decoder(nn.Module):
 
@@ -101,6 +54,7 @@ class AttentionDecoder(nn.Module):
         self.dropout = nn.Dropout(self.dropout_p)
 
         self.gru = nn.GRU(hid_dim, hid_dim)
+        #self.gru = nn.GRU(hid_dim + key_dim, hid_dim)
         
         self.out = nn.Linear(hid_dim, out_dim)
         
@@ -118,36 +72,28 @@ class AttentionDecoder(nn.Module):
         o = self.dropout(o)
 
         attn_input = torch.cat((o[0], hidden[0]), dim=1)
-        # attn_input size is [batch, emb_dim + hid_dim]
 
         attn_energies = self.attn(attn_input)
-        # attn_energies size is [batch, enc_dim[0]]
         attn_weights = F.softmax(attn_energies, dim=1)
-        # attn_weights size is [batch, enc_dim[0]]
 
         attn_weights = attn_weights.unsqueeze(dim=1)
-        # attn_weights : [batch, 1, enc_dim[0]]
-        # encoder_output : [batch, enc_dim[0], enc_dim[1]]
         context = torch.bmm(attn_weights, encoder_output)
         context = context.squeeze(dim=1)
+        a = attn_weights.squeeze(dim=1)
         # context : [batch, enc_dim[1]]
 
         o = torch.cat((o[0], context), dim=1)
         # o : [batch, emd_dim + enc_dim[1]]
+        
         o = self.attn_combine(o)
-        # o : [batch, hid_dim]
         o = o.unsqueeze(0)
-        # o : [1, batch, hid_dim]
 
         o = F.relu(o)
         o, h = self.gru(o, hidden)
+
         o = self.out(o)
         o = self.log_softmax(o)
         
-        a = attn_weights.squeeze(dim=1)
-        # a : [batch, enc_dim[0]]
-        # o : [1, batch, out_dim]
-        # h : ?
         return o, h, a
 
     def initHidden(self, batch_size):
@@ -163,12 +109,16 @@ class AttentionDecoder_2(nn.Module):
         
         self.embedding = nn.Embedding(out_dim, emb_dim)
         self.dropout = nn.Dropout(self.dropout_p)
-        self.attention = AdditiveAttention(key_dim, hid_dim)
-        self.gru = nn.GRU(emb_dim + val_dim, hid_dim)
-        self.w_h = nn.Linear(hid_dim, emb_dim)
-        self.w_z = nn.Linear(val_dim, emb_dim)
-        self.out = nn.Linear(emb_dim, out_dim)
-        self.log_softmax = nn.LogSoftmax(dim=1)
+        #self.attention = AdditiveAttention(key_dim, hid_dim, hid_dim)
+        self.attention = AdditiveAttention(key_dim, hid_dim + emb_dim, hid_dim)
+        self.attn_comine = nn.Linear(emb_dim + val_dim, hid_dim)
+        #self.gru = nn.GRU(emb_dim + val_dim, hid_dim)
+        self.gru = nn.GRU(hid_dim, hid_dim)
+
+        #self.out = DeepOutputLayer(out_dim, emb_dim, hid_dim, val_dim)
+        self.out = nn.Linear(hid_dim, out_dim)
+        
+        self.log_softmax = nn.LogSoftmax(dim=2)
 
     def forward(self, input, hidden, annotations):
         """
@@ -178,23 +128,26 @@ class AttentionDecoder_2(nn.Module):
             annotations: [batch, n_keys, key_dim]
         """
 
-        emb = self.embedding(input).squeeze(dim=2)  # emb: [1, batch, emb_dim]
-        emb = self.dropout(emb)
+        o = self.embedding(input).squeeze(dim=2)
+        o = self.dropout(o)
 
-        context, attn_weights = self.attention(Q=hidden.squeeze(dim=0), 
-                                    K=annotations, 
-                                    V=annotations)
-        
-        gru_in = torch.cat((emb, context.unsqueeze(dim=0)), dim=2)  # gru_in: [1, batch, emb_dim + val_dim]
-        out, hid = self.gru(gru_in, hidden)
+        q = torch.cat((hidden, o), dim=2).squeeze(0)
+        # context, a = self.attention(Q=hidden.squeeze(dim=0), 
+        #                             K=annotations, 
+        #                             V=annotations)
+        context, a = self.attention(Q=q, K=annotations, V=annotations)
 
-        # deep output layer
-        z = self.w_z(context)       # z: [batch, emb_dim]
-        h = self.w_h(hid)           # h: [batch, emb_dim]
-        out = self.out(emb.squeeze(dim=0) + z + h) # out: [batch, out_dim]
+        o = torch.cat((o[0], context), dim=1)
+        o = self.attn_comine(o)
+        o = o.unsqueeze(0)
+        o = F.relu(o)
+        o, h = self.gru(o, hidden)
 
-        out = self.log_softmax(out)
-        return out, hid, attn_weights
+        #out = self.out(y=emb, h=hid, z=context)
+        o = self.out(o)
+        o = self.log_softmax(o)
+
+        return o, h, a
 
     def initHidden(self, batch_size):
         return torch.zeros(1, batch_size, self.hid_dim, device=device)
