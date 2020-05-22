@@ -10,8 +10,8 @@ from data_loader import DataLoader
 from prepro import normalize_strings, filter_inputs
 from vocab import Vocab
 
-import attndec_batched
-from attndec_batched import Network
+import models
+from models import Network
 
 
 MAX_LEN = 15
@@ -47,9 +47,9 @@ def run(train_feats,
     decoder=1):
 
     if decoder == 1:
-        decoder = attndec_batched.AttentionDecoder
+        decoder = models.AttentionDecoder
     elif decoder == 2:
-        decoder = attndec_batched.AttentionDecoder_2
+        decoder = models.AttentionDecoder_2
 
     train(train_feats, train_caps, val_feats, val_caps, train_prefix, 
         val_prefix, epochs, batch_size, max_seq_len, hidden_dim, emb_dim,
