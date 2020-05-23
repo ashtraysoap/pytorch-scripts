@@ -42,6 +42,7 @@ def run(train_feats,
     enc_dim=ENC_DIM,
     clip_val=CLIP_VAL,
     teacher_force=TEACHER_FORCE_RAT,
+    dropout_p=0.1,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
     decoder=1):
@@ -54,7 +55,7 @@ def run(train_feats,
     train(train_feats, train_caps, val_feats, val_caps, train_prefix, 
         val_prefix, epochs, batch_size, max_seq_len, hidden_dim, emb_dim,
         enc_seq_len, enc_dim, clip_val,
-        teacher_force, checkpoint, out_dir, decoder)
+        teacher_force, dropout_p, checkpoint, out_dir, decoder)
 
 
 def train(train_feats, 
@@ -72,6 +73,7 @@ def train(train_feats,
     enc_dim=ENC_DIM,
     clip_val=CLIP_VAL,
     teacher_force=TEACHER_FORCE_RAT,
+    dropout_p=0.1,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
     decoder=None):
@@ -125,6 +127,7 @@ def train(train_feats,
         emb_dim=emb_dim,
         enc_seq_len=enc_seq_len,
         enc_dim=enc_dim,
+        dropout_p=dropout_p,
         decoder=decoder)
     net.to(DEVICE)
 
@@ -318,8 +321,8 @@ def sample(model, data_iter, vocab, samples=1, max_len=MAX_LEN, shuffle=True):
         # targets : [max_len, batch, 1]
         targets = targets.squeeze(2).permute(1, 0)
         for i in range(min(samples_left, batch_size)):
-            s = vocab.tensor_to_sentence(topi[i])
-            t = vocab.tensor_to_sentence(targets[i])
+            s = vocab.tensor_to_sentence(topi[i]).join(' ')
+            t = vocab.tensor_to_sentence(targets[i]).join(' ')
             results.append((t, s))
         samples_left -= (i + 1)
         if samples_left == 0: break
@@ -356,7 +359,7 @@ def infere(model, data_iter, vocab, max_len=MAX_LEN):
 
         for i in range(batch_size):
             s = vocab.tensor_to_sentence(topi[i])
-            results.append((t, s))
+            results.append(s)
     
     return results
 

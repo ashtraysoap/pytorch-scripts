@@ -21,8 +21,9 @@ class AdditiveAttention(nn.Module):
         self.linear_key = nn.Linear(dim_k, hid_dim)
         self.linear_query = nn.Linear(dim_q, hid_dim)
         self.hidden = nn.Linear(hid_dim, 1)
-        self.dropout = nn.Dropout(p=dropout_p)
         self.softmax = nn.Softmax(dim=1)
+
+        self.dropout_p = dropout_p
 
     def forward(self, Q, K, V):
         """Computes the additive attention function.
@@ -35,16 +36,21 @@ class AdditiveAttention(nn.Module):
         
         n_keys = K.size()[1]
         tk = self.linear_key(K)                 # tk: [batch, n_keys, hid_dim]
+        tk = F.dropout(tk, p=self.dropout_p)
 
         tq = self.linear_query(Q)               # tq: [batch, hid_dim]
+        tq = F.dropout(tq, p=self.dropout_p)
         tq = tq.unsqueeze(1)                    # tq: [batch, 1, hid_dim]
         tq = tq.expand(-1, n_keys, -1)          # tq: [batch, n_keys, hid_dim]
         
         energies = self.hidden(tk + tq)         # energies: [batch, n_keys, 1]
+        energies = F.dropout(energies, p=self.dropout_p)
+
         energies = F.relu(energies)
         weights = self.softmax(energies)        # weights: [batch, n_keys, 1]
         weights = weights.permute(0, 2, 1)      # weights: [batch, 1, n_keys]
         output = torch.bmm(weights, V)          # output: [batch, 1, dim_v]
+        output = F.dropout(output, p=self.dropout_p)
         
         weights = weights.squeeze(1)
         output = output.squeeze(1)

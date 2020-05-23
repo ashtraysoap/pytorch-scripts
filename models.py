@@ -111,7 +111,7 @@ class AttentionDecoder_2(nn.Module):
         self.dropout = nn.Dropout(self.dropout_p)
         #self.attention = AdditiveAttention(key_dim, hid_dim, hid_dim)
         self.attention = AdditiveAttention(key_dim, hid_dim + emb_dim, hid_dim)
-        self.attn_comine = nn.Linear(emb_dim + val_dim, hid_dim)
+        self.attn_combine = nn.Linear(emb_dim + val_dim, hid_dim)
         #self.gru = nn.GRU(emb_dim + val_dim, hid_dim)
         self.gru = nn.GRU(hid_dim, hid_dim)
 
@@ -138,10 +138,17 @@ class AttentionDecoder_2(nn.Module):
         context, a = self.attention(Q=q, K=annotations, V=annotations)
 
         o = torch.cat((o[0], context), dim=1)
-        o = self.attn_comine(o)
+        o = F.dropout(o, p=self.dropout_p)
+
+        o = self.attn_combine(o)
+        o = F.dropout(o, p=self.dropout_p)
+
         o = o.unsqueeze(0)
         o = F.relu(o)
+        o = F.dropout(o, p=self.dropout_p)
+
         o, h = self.gru(o, hidden)
+        o = F.dropout(o, p=self.dropout_p)
 
         #out = self.out(y=emb, h=hid, z=context)
         o = self.out(o)
@@ -166,6 +173,7 @@ class Network(nn.Module):
         eos_token, 
         pad_token,
         teacher_forcing_rat=0.2,
+        dropout_p=0.1,
         decoder=AttentionDecoder
         ):
 
@@ -185,7 +193,8 @@ class Network(nn.Module):
                         out_dim=out_dim, 
                         key_dim=enc_dim, 
                         val_dim=enc_dim,
-                        n_keys=enc_seq_len)
+                        n_keys=enc_seq_len,
+                        dropout_p=dropout_p)
 
         self.decoder.to(device)
 
@@ -228,7 +237,7 @@ class Network(nn.Module):
         out = out.permute(1, 0, 2).detach()
         att = att.permute(1, 0, 2).detach()
 
-        _, topi = y.topk(1, dim=2)
+        _, topi = out.topk(1, dim=2)
         topi = topi.squeeze(2)
 
         return {
