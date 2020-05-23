@@ -300,10 +300,10 @@ def evaluate(model, loss_function, data_iter, max_len=MAX_LEN, epsilon=0.0005):
         y = y.permute(1, 2, 0)
         t = t.squeeze(2).permute(1, 0)
         
-        l, _ = loss_func(loss_function, y, t, att_w, epsilon).item()
+        l, _ = loss_func(loss_function, y, t, att_w, epsilon)
         #l = loss_function(input=y, target=t).item()
 
-        loss += l
+        loss += l.item()
         loss_log.append(l / batch_size)
         num_instances += batch_size
 
