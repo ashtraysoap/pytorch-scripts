@@ -44,6 +44,7 @@ def run(train_feats,
     teacher_force=TEACHER_FORCE_RAT,
     dropout_p=0.1,
     attn_activation="relu",
+    epsilon=0.0005,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
     decoder=1):
@@ -56,7 +57,8 @@ def run(train_feats,
     train(train_feats, train_caps, val_feats, val_caps, train_prefix, 
         val_prefix, epochs, batch_size, max_seq_len, hidden_dim, emb_dim,
         enc_seq_len, enc_dim, clip_val,
-        teacher_force, dropout_p, attn_activation, checkpoint, out_dir, decoder)
+        teacher_force, dropout_p, attn_activation, epsilon, 
+        checkpoint, out_dir, decoder)
 
 
 def train(train_feats, 
@@ -76,6 +78,7 @@ def train(train_feats,
     teacher_force=TEACHER_FORCE_RAT,
     dropout_p=0.1,
     attn_activation="relu",
+    epsilon=0.0005,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
     decoder=None):
@@ -165,7 +168,8 @@ def train(train_feats,
 
         # train one epoch
         train_l, inst, steps, t, l_log = train_epoch(model=net, loss_function=loss_function,
-            optimizer=optimizer, data_iter=train_data, max_len=max_seq_len, clip_val=clip_val)
+            optimizer=optimizer, data_iter=train_data, max_len=max_seq_len, clip_val=clip_val,
+            epsilon=epsilon)
         
         # epoch logs
         print("Training loss:\t", train_l)
@@ -185,7 +189,7 @@ def train(train_feats,
         # evaluate
         if val_caps:
             val_l, l_log = evaluate(model=net, loss_function=loss_function, 
-                data_iter=val_data, max_len=max_seq_len)
+                data_iter=val_data, max_len=max_seq_len, epsilon=epsilon)
 
             # validation logs
             print("Validation loss: ", val_l)
@@ -222,7 +226,7 @@ def train(train_feats,
     print("EXPERIMENT END ", time.asctime())
 
 def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN, 
-    clip_val=CLIP_VAL):
+    clip_val=CLIP_VAL, epsilon=0.0005):
     """Trains the model for one epoch.
 
     Returns:
@@ -245,15 +249,17 @@ def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN,
         inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
         
         optimizer.zero_grad()
-        y, _ = model(features=inputs, 
+        y, att_weights = model(features=inputs, 
             targets=targets, 
             max_len=max_len)
         
         y = y.permute(1, 2, 0)
         targets = targets.squeeze(2).permute(1, 0)
         
-        loss = loss_function(input=y, target=targets)
+        #loss = loss_function(input=y, target=targets)
+        loss = loss_func(loss_function, y, targets, att_weights, epsilon)
         loss.backward()
+
         norm = torch.nn.utils.clip_grad_norm_(model.parameters(), clip_val)
         optimizer.step()
 
@@ -267,7 +273,7 @@ def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN,
     f_loss = total_loss / num_instances
     return f_loss, num_instances, num_steps, epoch_time, loss_log
 
-def evaluate(model, loss_function, data_iter, max_len=MAX_LEN):
+def evaluate(model, loss_function, data_iter, max_len=MAX_LEN, epsilon=0.0005):
     """Computes loss on validation data.
 
     Returns:
@@ -284,10 +290,13 @@ def evaluate(model, loss_function, data_iter, max_len=MAX_LEN):
     for batch in data_iter:
         i, t, batch_size = batch
         i, t = i.to(DEVICE), t.to(DEVICE)
-        y, _ = model(i, t, max_len=max_len)
+        y, att_w = model(i, t, max_len=max_len)
         y = y.permute(1, 2, 0)
         t = t.squeeze(2).permute(1, 0)
-        l = loss_function(input=y, target=t).item()
+        
+        l = loss_func(loss_function, y, t, att_w, epsilon).item()
+        #l = loss_function(input=y, target=t).item()
+
         loss += l
         loss_log.append(l / batch_size)
         num_instances += batch_size
@@ -364,6 +373,21 @@ def infere(model, data_iter, vocab, max_len=MAX_LEN):
             results.append(s)
     
     return results
+
+def loss_func(loss, outputs, targets, att_weigths, epsilon=0.0005):
+    l = loss(input=outputs, target=targets)
+
+    if epsilon == 0:
+        return l
+
+    penalty = 1 - torch.sum(att_weigths, dim=0)
+    penalty = penalty.pow(exponent=2).sum(dim=1)
+    penalty = torch.sum(epsilon * penalty)
+    
+    print("loss ", l.item(), " penalty ", penalty.item())
+
+    l = l + penalty
+    return l
 
 def _write_loss_log(out_f, out_dir, log):
     with open(os.path.join(out_dir, out_f), mode='w') as f:
