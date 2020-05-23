@@ -384,8 +384,6 @@ def loss_func(loss, outputs, targets, att_weigths, epsilon=0.0005):
     penalty = penalty.pow(exponent=2).sum(dim=1)
     penalty = torch.sum(epsilon * penalty)
     
-    print("loss ", l.item(), " penalty ", penalty.item())
-
     l = l + penalty
     return l
 
