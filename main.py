@@ -321,8 +321,8 @@ def sample(model, data_iter, vocab, samples=1, max_len=MAX_LEN, shuffle=True):
         # targets : [max_len, batch, 1]
         targets = targets.squeeze(2).permute(1, 0)
         for i in range(min(samples_left, batch_size)):
-            s = vocab.tensor_to_sentence(topi[i]).join(' ')
-            t = vocab.tensor_to_sentence(targets[i]).join(' ')
+            s = ' '.join(vocab.tensor_to_sentence(topi[i]))
+            t = ' '.join(vocab.tensor_to_sentence(targets[i]))
             results.append((t, s))
         samples_left -= (i + 1)
         if samples_left == 0: break
