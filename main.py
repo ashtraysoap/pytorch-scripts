@@ -149,6 +149,7 @@ def train(train_feats,
     total_steps = 0
     train_loss_log = []
     train_loss_log_batches = []
+    train_penalty_log = []
     val_loss_log = []
     val_loss_log_batches = []
 
@@ -167,7 +168,7 @@ def train(train_feats,
         print("Epoch ", e)
 
         # train one epoch
-        train_l, inst, steps, t, l_log = train_epoch(model=net, loss_function=loss_function,
+        train_l, inst, steps, t, l_log, pen = train_epoch(model=net, loss_function=loss_function,
             optimizer=optimizer, data_iter=train_data, max_len=max_seq_len, clip_val=clip_val,
             epsilon=epsilon)
         
@@ -183,6 +184,7 @@ def train(train_feats,
         total_steps += steps
         train_loss_log.append(train_l)
         train_loss_log_batches += l_log
+        train_penalty_log.append(pen)
         print()
 
 
@@ -218,6 +220,7 @@ def train(train_feats,
 
     _write_loss_log("train_loss_log.txt", out_dir, train_loss_log)
     _write_loss_log("train_loss_log_batches.txt", out_dir, train_loss_log_batches)
+    _write_loss_log("train_penalty.txt", out_dir, train_penalty_log)
 
     if val_caps:
         _write_loss_log("val_loss_log.txt", out_dir, val_loss_log)
@@ -241,6 +244,7 @@ def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN,
     loss_log = []
     num_instances = 0
     num_steps = 0
+    total_penalty = 0
     start_time = time.time()
 
     for batch in data_iter:
@@ -257,7 +261,7 @@ def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN,
         targets = targets.squeeze(2).permute(1, 0)
         
         #loss = loss_function(input=y, target=targets)
-        loss = loss_func(loss_function, y, targets, att_weights, epsilon)
+        loss, penalty = loss_func(loss_function, y, targets, att_weights, epsilon)
         loss.backward()
 
         norm = torch.nn.utils.clip_grad_norm_(model.parameters(), clip_val)
@@ -265,13 +269,15 @@ def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN,
 
         l = loss.item()
         total_loss += l
+        total_penalty += penalty.item()
         loss_log.append(l / batch_size)
         num_instances += batch_size
         num_steps += 1
     
     epoch_time = time.time() - start_time
     f_loss = total_loss / num_instances
-    return f_loss, num_instances, num_steps, epoch_time, loss_log
+    f_penalty = total_penalty / num_instances
+    return f_loss, num_instances, num_steps, epoch_time, loss_log, f_penalty
 
 def evaluate(model, loss_function, data_iter, max_len=MAX_LEN, epsilon=0.0005):
     """Computes loss on validation data.
@@ -294,7 +300,7 @@ def evaluate(model, loss_function, data_iter, max_len=MAX_LEN, epsilon=0.0005):
         y = y.permute(1, 2, 0)
         t = t.squeeze(2).permute(1, 0)
         
-        l = loss_func(loss_function, y, t, att_w, epsilon).item()
+        l, _ = loss_func(loss_function, y, t, att_w, epsilon).item()
         #l = loss_function(input=y, target=t).item()
 
         loss += l
@@ -385,7 +391,7 @@ def loss_func(loss, outputs, targets, att_weigths, epsilon=0.0005):
     penalty = torch.sum(epsilon * penalty)
     
     l = l + penalty
-    return l
+    return l, penalty
 
 def _write_loss_log(out_f, out_dir, log):
     with open(os.path.join(out_dir, out_f), mode='w') as f:
