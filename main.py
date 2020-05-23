@@ -43,6 +43,7 @@ def run(train_feats,
     clip_val=CLIP_VAL,
     teacher_force=TEACHER_FORCE_RAT,
     dropout_p=0.1,
+    attn_activation="relu",
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
     decoder=1):
@@ -55,7 +56,7 @@ def run(train_feats,
     train(train_feats, train_caps, val_feats, val_caps, train_prefix, 
         val_prefix, epochs, batch_size, max_seq_len, hidden_dim, emb_dim,
         enc_seq_len, enc_dim, clip_val,
-        teacher_force, dropout_p, checkpoint, out_dir, decoder)
+        teacher_force, dropout_p, attn_activation, checkpoint, out_dir, decoder)
 
 
 def train(train_feats, 
@@ -74,6 +75,7 @@ def train(train_feats,
     clip_val=CLIP_VAL,
     teacher_force=TEACHER_FORCE_RAT,
     dropout_p=0.1,
+    attn_activation="relu",
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
     decoder=None):

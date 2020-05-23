@@ -8,7 +8,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class AdditiveAttention(nn.Module):
 
-    def __init__(self, dim_k, dim_q, hid_dim, dropout_p=0.1, activation="relu"):
+    def __init__(self, dim_k, dim_q, hid_dim, dropout_p=0.1, activation="relu", **kwargs):
         """Creates an additive attention layer.
 
         Args:

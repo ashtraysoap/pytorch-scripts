@@ -101,7 +101,7 @@ class AttentionDecoder(nn.Module):
 
 class AttentionDecoder_2(nn.Module):
 
-    def __init__(self, hid_dim, emb_dim, out_dim, key_dim, val_dim, dropout_p=0.1, **kwargs):
+    def __init__(self, hid_dim, emb_dim, out_dim, key_dim, val_dim, attn_activation, dropout_p=0.1, **kwargs):
         super(AttentionDecoder_2, self).__init__()
         self.hid_dim = hid_dim
         self.emb_dim = emb_dim
@@ -111,7 +111,7 @@ class AttentionDecoder_2(nn.Module):
         self.dropout = nn.Dropout(self.dropout_p)
         #self.attention = AdditiveAttention(key_dim, hid_dim, hid_dim)
         self.attention = AdditiveAttention(key_dim, hid_dim + emb_dim, hid_dim, 
-                dropout_p=dropout_p, activation="relu")
+                dropout_p=dropout_p, activation=attn_activation)
         self.attn_combine = nn.Linear(emb_dim + val_dim, hid_dim)
         #self.gru = nn.GRU(emb_dim + val_dim, hid_dim)
         self.gru = nn.GRU(hid_dim, hid_dim)
@@ -174,6 +174,7 @@ class Network(nn.Module):
         pad_token,
         teacher_forcing_rat=0.2,
         dropout_p=0.1,
+        attn_activation="relu",
         decoder=AttentionDecoder
         ):
 
@@ -194,6 +195,7 @@ class Network(nn.Module):
                         key_dim=enc_dim, 
                         val_dim=enc_dim,
                         n_keys=enc_seq_len,
+                        attn_activation=attn_activation,
                         dropout_p=dropout_p)
 
         self.decoder.to(device)
