@@ -60,7 +60,7 @@ class Vocab():
     def tensor_to_sentence(self, tensor):
         tensor = tensor.view(-1)
         s = [self.index2word[i.item()] for i in tensor]
-        return ' '.join(s)
+        return s
 
 
     def save(self, path='vocab.txt'):
