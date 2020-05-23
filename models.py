@@ -110,7 +110,8 @@ class AttentionDecoder_2(nn.Module):
         self.embedding = nn.Embedding(out_dim, emb_dim)
         self.dropout = nn.Dropout(self.dropout_p)
         #self.attention = AdditiveAttention(key_dim, hid_dim, hid_dim)
-        self.attention = AdditiveAttention(key_dim, hid_dim + emb_dim, hid_dim)
+        self.attention = AdditiveAttention(key_dim, hid_dim + emb_dim, hid_dim, 
+                dropout_p=dropout_p, activation="relu")
         self.attn_combine = nn.Linear(emb_dim + val_dim, hid_dim)
         #self.gru = nn.GRU(emb_dim + val_dim, hid_dim)
         self.gru = nn.GRU(hid_dim, hid_dim)
@@ -145,7 +146,6 @@ class AttentionDecoder_2(nn.Module):
 
         o = o.unsqueeze(0)
         o = F.relu(o)
-        o = F.dropout(o, p=self.dropout_p)
 
         o, h = self.gru(o, hidden)
         o = F.dropout(o, p=self.dropout_p)

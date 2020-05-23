@@ -8,7 +8,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class AdditiveAttention(nn.Module):
 
-    def __init__(self, dim_k, dim_q, hid_dim, dropout_p=0.1):
+    def __init__(self, dim_k, dim_q, hid_dim, dropout_p=0.1, activation="relu"):
         """Creates an additive attention layer.
 
         Args:
@@ -22,6 +22,10 @@ class AdditiveAttention(nn.Module):
         self.linear_query = nn.Linear(dim_q, hid_dim)
         self.hidden = nn.Linear(hid_dim, 1)
         self.softmax = nn.Softmax(dim=1)
+        if activation == "relu":
+            self.activation = nn.ReLU()
+        elif activation == "tanh":
+            self.activation = nn.Tanh()
 
         self.dropout_p = dropout_p
 
@@ -43,14 +47,15 @@ class AdditiveAttention(nn.Module):
         tq = tq.unsqueeze(1)                    # tq: [batch, 1, hid_dim]
         tq = tq.expand(-1, n_keys, -1)          # tq: [batch, n_keys, hid_dim]
         
-        energies = self.hidden(tk + tq)         # energies: [batch, n_keys, 1]
-        energies = F.dropout(energies, p=self.dropout_p)
+        tqk = self.activation(tk + tq)
+        
+        energies = self.hidden(tqk)         # energies: [batch, n_keys, 1]
 
-        energies = F.relu(energies)
         weights = self.softmax(energies)        # weights: [batch, n_keys, 1]
         weights = weights.permute(0, 2, 1)      # weights: [batch, 1, n_keys]
         output = torch.bmm(weights, V)          # output: [batch, 1, dim_v]
-        output = F.dropout(output, p=self.dropout_p)
+        
+        #output = F.dropout(output, p=self.dropout_p)
         
         weights = weights.squeeze(1)
         output = output.squeeze(1)
