@@ -54,9 +54,7 @@ class AdditiveAttention(nn.Module):
         weights = self.softmax(energies)        # weights: [batch, n_keys, 1]
         weights = weights.permute(0, 2, 1)      # weights: [batch, 1, n_keys]
         output = torch.bmm(weights, V)          # output: [batch, 1, dim_v]
-        
-        #output = F.dropout(output, p=self.dropout_p)
-        
+                
         weights = weights.squeeze(1)
         output = output.squeeze(1)
         return output, weights

@@ -109,11 +109,9 @@ class AttentionDecoder_2(nn.Module):
         
         self.embedding = nn.Embedding(out_dim, emb_dim)
         self.dropout = nn.Dropout(self.dropout_p)
-        #self.attention = AdditiveAttention(key_dim, hid_dim, hid_dim)
-        self.attention = AdditiveAttention(key_dim, hid_dim + emb_dim, hid_dim, 
+        self.attention = AdditiveAttention(key_dim, hid_dim, hid_dim, 
                 dropout_p=dropout_p, activation=attn_activation)
         self.attn_combine = nn.Linear(emb_dim + val_dim, hid_dim)
-        #self.gru = nn.GRU(emb_dim + val_dim, hid_dim)
         self.gru = nn.GRU(hid_dim, hid_dim)
 
         #self.out = DeepOutputLayer(out_dim, emb_dim, hid_dim, val_dim)
@@ -132,11 +130,13 @@ class AttentionDecoder_2(nn.Module):
         o = self.embedding(input).squeeze(dim=2)
         o = self.dropout(o)
 
-        q = torch.cat((hidden, o), dim=2).squeeze(0)
+        #q = torch.cat((hidden, o), dim=2).squeeze(0)
         # context, a = self.attention(Q=hidden.squeeze(dim=0), 
         #                             K=annotations, 
         #                             V=annotations)
-        context, a = self.attention(Q=q, K=annotations, V=annotations)
+        context, a = self.attention(Q=hidden.squeeze(0), 
+                    K=annotations, 
+                    V=annotations)
 
         o = torch.cat((o[0], context), dim=1)
         o = F.dropout(o, p=self.dropout_p)
