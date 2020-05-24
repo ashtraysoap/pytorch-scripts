@@ -275,7 +275,7 @@ def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN,
 
         l = loss.item()
         total_loss += l
-        total_penalty += penalty.item()
+        total_penalty += 0 if penalty is None else penalty.item()
         loss_log.append(l / batch_size)
         num_instances += batch_size
         num_steps += 1
@@ -390,7 +390,7 @@ def loss_func(loss, outputs, targets, att_weigths, epsilon=0.0005):
     l = loss(input=outputs, target=targets)
 
     if epsilon == 0:
-        return l
+        return (l, None)
 
     penalty = 1 - torch.sum(att_weigths, dim=0)
     penalty = penalty.pow(exponent=2).sum(dim=1)
