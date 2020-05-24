@@ -23,6 +23,8 @@ EPOCHS = 100
 BATCH_SIZE = 4
 CLIP_VAL = 1
 TEACHER_FORCE_RAT = 0.2
+WEIGHT_DECAY=0.0
+LEARNING_RATE=0.001
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print("DEVICE:\t", DEVICE)
@@ -45,6 +47,8 @@ def run(train_feats,
     dropout_p=0.1,
     attn_activation="relu",
     epsilon=0.0005,
+    weight_decay=WEIGHT_DECAY,
+    lr=LEARNING_RATE,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
     decoder=1):
@@ -58,7 +62,7 @@ def run(train_feats,
         val_prefix, epochs, batch_size, max_seq_len, hidden_dim, emb_dim,
         enc_seq_len, enc_dim, clip_val,
         teacher_force, dropout_p, attn_activation, epsilon, 
-        checkpoint, out_dir, decoder)
+        weight_decay, lr, checkpoint, out_dir, decoder)
 
 
 def train(train_feats, 
@@ -79,6 +83,8 @@ def train(train_feats,
     dropout_p=0.1,
     attn_activation="relu",
     epsilon=0.0005,
+    weight_decay=WEIGHT_DECAY,
+    lr=LEARNING_RATE,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
     decoder=None):
@@ -139,7 +145,7 @@ def train(train_feats,
     if checkpoint:
         net.load_state_dict(torch.load(checkpoint))
     
-    optimizer = torch.optim.Adam(net.parameters())
+    optimizer = torch.optim.Adam(net.parameters(), lr=lr, weight_decay=weight_decay)
     loss_function = nn.NLLLoss()
 
     # 4. Train
