@@ -139,16 +139,16 @@ class AttentionDecoder_2(nn.Module):
                     V=annotations)
 
         o = torch.cat((o[0], context), dim=1)
-        o = F.dropout(o, p=self.dropout_p)
+        #o = F.dropout(o, p=self.dropout_p)
 
         o = self.attn_combine(o)
-        o = F.dropout(o, p=self.dropout_p)
+        #o = F.dropout(o, p=self.dropout_p)
 
         o = o.unsqueeze(0)
         o = F.relu(o)
 
         o, h = self.gru(o, hidden)
-        o = F.dropout(o, p=self.dropout_p)
+        #o = F.dropout(o, p=self.dropout_p)
 
         #out = self.out(y=emb, h=hid, z=context)
         o = self.out(o)
