@@ -49,6 +49,7 @@ def run(train_feats,
     epsilon=0.0005,
     weight_decay=WEIGHT_DECAY,
     lr=LEARNING_RATE,
+    early_stopping=True,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
     decoder=1):
@@ -62,7 +63,7 @@ def run(train_feats,
         val_prefix, epochs, batch_size, max_seq_len, hidden_dim, emb_dim,
         enc_seq_len, enc_dim, clip_val,
         teacher_force, dropout_p, attn_activation, epsilon, 
-        weight_decay, lr, checkpoint, out_dir, decoder)
+        weight_decay, lr, early_stopping, checkpoint, out_dir, decoder)
 
 
 def train(train_feats, 
@@ -85,6 +86,7 @@ def train(train_feats,
     epsilon=0.0005,
     weight_decay=WEIGHT_DECAY,
     lr=LEARNING_RATE,
+    early_stopping=True,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
     decoder=None):
@@ -208,11 +210,33 @@ def train(train_feats,
 
 
         #sample model
+        print("Sampling training data...")
+        print()
         samples = sample(net, train_data, vocab, samples=3, max_len=max_seq_len)
         for t, s in samples:
             print("Target:\t", t)
             print("Predicted:\t", s)
             print()
+
+        if val_caps:
+            print("Sampling validation data...")
+            print()
+            samples = sample(net, val_data, vocab, samples=3, max_len=max_seq_len)
+            for t, s in samples:
+                print("Target:\t", t)
+                print("Predicted:\t", s)
+                print()
+
+        if val_caps:
+            # If the validation loss after this epoch increased from the
+            # previous epoch, wrap training.
+            if prev_val_l < val_l and early_stopping:
+                print("\nWrapping training after {0} epochs.\n".format(epochs + 1))
+                break
+
+            prev_val_l = val_l
+
+
 
     # Experiment summary logs.
     tot_time = time.time() - training_start_time
