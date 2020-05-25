@@ -311,7 +311,7 @@ def evaluate(model, loss_function, data_iter, max_len=MAX_LEN, epsilon=0.0005):
             #l = loss_function(input=y, target=t).item()
 
             loss += l.item()
-            loss_log.append(l / batch_size)
+            loss_log.append(l.item() / batch_size)
             num_instances += batch_size
 
     return (loss / num_instances), loss_log
