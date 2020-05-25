@@ -57,9 +57,18 @@ class Vocab():
         toks = [[x] for x in toks]
         return torch.tensor(toks)
 
-    def tensor_to_sentence(self, tensor):
+    def tensor_to_sentence(self, tensor, truncate=True):
         tensor = tensor.view(-1)
         s = [self.index2word[i.item()] for i in tensor]
+
+        if truncate:
+            og = s
+            s = []
+            for t in og:
+                if t == "EOS":
+                    break
+                s.append(t)
+
         return s
 
 
