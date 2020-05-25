@@ -292,26 +292,27 @@ def evaluate(model, loss_function, data_iter, max_len=MAX_LEN, epsilon=0.0005):
         The loss on the dataset, a list of losses for each batch.
     """
 
-    # set the network to evaluation mode
-    model.eval()
-    
     loss = 0
     loss_log = []
     num_instances = 0
 
-    for batch in data_iter:
-        i, t, batch_size = batch
-        i, t = i.to(DEVICE), t.to(DEVICE)
-        y, att_w = model(i, t, max_len=max_len)
-        y = y.permute(1, 2, 0)
-        t = t.squeeze(2).permute(1, 0)
+    with torch.no_grad():
+        # set the network to evaluation mode
+        model.eval()
+    
+        for batch in data_iter:
+            i, t, batch_size = batch
+            i, t = i.to(DEVICE), t.to(DEVICE)
+            y, att_w = model(i, t, max_len=max_len)
+            y = y.permute(1, 2, 0)
+            t = t.squeeze(2).permute(1, 0)
         
-        l, _ = loss_func(loss_function, y, t, att_w, epsilon)
-        #l = loss_function(input=y, target=t).item()
+            l, _ = loss_func(loss_function, y, t, att_w, epsilon)
+            #l = loss_function(input=y, target=t).item()
 
-        loss += l.item()
-        loss_log.append(l / batch_size)
-        num_instances += batch_size
+            loss += l.item()
+            loss_log.append(l / batch_size)
+            num_instances += batch_size
 
     return (loss / num_instances), loss_log
 
@@ -322,33 +323,34 @@ def sample(model, data_iter, vocab, samples=1, max_len=MAX_LEN, shuffle=True):
         A list of tuples of target caption and generated caption.
     """
 
-    # set the network to evaluation mode
-    model.eval()
-
     if not shuffle:
         data_iter.shuffle = False
     
     samples_left = samples
     results = []
 
-    for batch in data_iter:
-        inputs, targets, batch_size = batch
-        inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
+    with torch.no_grad():
+        # set the network to evaluation mode
+        model.eval()
 
-        y, _ = model(features=inputs, targets=None, max_len=max_len)
-        # y : [max_len, batch, vocab_dim]
-        y = y.permute(1, 0, 2)
-        _, topi = y.topk(1, dim=2)
-        # topi : [batch, max_len, 1]
-        topi = topi.detach().squeeze(2)
-        # targets : [max_len, batch, 1]
-        targets = targets.squeeze(2).permute(1, 0)
-        for i in range(min(samples_left, batch_size)):
-            s = ' '.join(vocab.tensor_to_sentence(topi[i]))
-            t = ' '.join(vocab.tensor_to_sentence(targets[i]))
-            results.append((t, s))
-        samples_left -= (i + 1)
-        if samples_left == 0: break
+        for batch in data_iter:
+            inputs, targets, batch_size = batch
+            inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
+
+            y, _ = model(features=inputs, targets=None, max_len=max_len)
+            # y : [max_len, batch, vocab_dim]
+            y = y.permute(1, 0, 2)
+            _, topi = y.topk(1, dim=2)
+            # topi : [batch, max_len, 1]
+            topi = topi.detach().squeeze(2)
+            # targets : [max_len, batch, 1]
+            targets = targets.squeeze(2).permute(1, 0)
+            for i in range(min(samples_left, batch_size)):
+                s = ' '.join(vocab.tensor_to_sentence(topi[i]))
+                t = ' '.join(vocab.tensor_to_sentence(targets[i]))
+                results.append((t, s))
+            samples_left -= (i + 1)
+            if samples_left == 0: break
     
     if not shuffle:
         data_iter.shuffle = True
@@ -362,27 +364,28 @@ def infere(model, data_iter, vocab, max_len=MAX_LEN):
         A list generated caption.
     """
 
-    # set the network to evaluation mode
-    model.eval()
+    with torch.no_grad():
+        # set the network to evaluation mode
+        model.eval()
  
-    results = []
+        results = []
 
-    for batch in data_iter:
-        inputs, targets, batch_size = batch
-        inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
+        for batch in data_iter:
+            inputs, targets, batch_size = batch
+            inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
 
-        y, _ = model(features=inputs, targets=None, max_len=max_len)
+            y, _ = model(features=inputs, targets=None, max_len=max_len)
 
-        # y : [max_len, batch, vocab_dim]
-        y = y.permute(1, 0, 2)
-        _, topi = y.topk(1, dim=2)
+            # y : [max_len, batch, vocab_dim]
+            y = y.permute(1, 0, 2)
+            _, topi = y.topk(1, dim=2)
         
-        # topi : [batch, max_len, 1]
-        topi = topi.detach().squeeze(2)
+            # topi : [batch, max_len, 1]
+            topi = topi.detach().squeeze(2)
 
-        for i in range(batch_size):
-            s = vocab.tensor_to_sentence(topi[i])
-            results.append(s)
+            for i in range(batch_size):
+                s = vocab.tensor_to_sentence(topi[i])
+                results.append(s)
     
     return results
 
