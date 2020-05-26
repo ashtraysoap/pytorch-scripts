@@ -231,7 +231,7 @@ def train(train_feats,
             # If the validation loss after this epoch increased from the
             # previous epoch, wrap training.
             if prev_val_l < val_l and early_stopping:
-                print("\nWrapping training after {0} epochs.\n".format(epochs + 1))
+                print("\nWrapping training after {0} epochs.\n".format(e + 1))
                 break
 
             prev_val_l = val_l
