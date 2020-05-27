@@ -69,6 +69,7 @@ def run(test_dir,
         while i < num_instances:
             srcs_batch = srcs[i:i + batch_size]
             batch = _load_batch(srcs_batch)
+            batch = batch.to(DEVICE)
 
             tokens, _ = net(batch, targets=None, max_len=max_seq_len)
             tokens = tokens.permute(1, 0, 2).detach()
