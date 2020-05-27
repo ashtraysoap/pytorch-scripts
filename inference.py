@@ -58,26 +58,30 @@ def run(test_dir,
 
     net.load_state_dict(torch.load(checkpoint))
    
-    # run inference
-    num_instances = len(srcs)
-    i = 0
-    captions = []
-    while i < num_instances:
-        srcs_batch = srcs[i:i + batch_size]
-        batch = _load_batch(srcs_batch)
+    net.eval()
 
-        tokens, _ = net(batch, targets=None, max_len=max_seq_len)
-        tokens = tokens.permute(1, 0, 2).detach()
-        _, topi = tokens.topk(1, dim=2)
-        topi = topi.squeeze(2)
+    with torch.no_grad():
 
-        # decode token output from the model
-        for j in range(len(srcs_batch)):
-            c = vocabulary.tensor_to_sentence(topi[j])
-            c = ' '.join(c)
-            captions.append(c)
+        # run inference
+        num_instances = len(srcs)
+        i = 0
+        captions = []
+        while i < num_instances:
+            srcs_batch = srcs[i:i + batch_size]
+            batch = _load_batch(srcs_batch)
 
-        i += len(srcs_batch)
+            tokens, _ = net(batch, targets=None, max_len=max_seq_len)
+            tokens = tokens.permute(1, 0, 2).detach()
+            _, topi = tokens.topk(1, dim=2)
+            topi = topi.squeeze(2)
+
+            # decode token output from the model
+            for j in range(len(srcs_batch)):
+                c = vocabulary.tensor_to_sentence(topi[j])
+                c = ' '.join(c)
+                captions.append(c)
+
+            i += len(srcs_batch)
 
     out_f = open(out, mode='w')
     for c in captions:
