@@ -52,6 +52,7 @@ def run(train_feats,
     weight_decay=WEIGHT_DECAY,
     lr=LEARNING_RATE,
     early_stopping=True,
+    deep_out=False,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
     decoder=2):
@@ -65,7 +66,7 @@ def run(train_feats,
         val_prefix, epochs, batch_size, max_seq_len, hidden_dim, emb_dim,
         enc_seq_len, enc_dim, clip_val,
         teacher_force, teacher_force_end, dropout_p, attn_activation, epsilon, 
-        weight_decay, lr, early_stopping, checkpoint, out_dir, decoder)
+        weight_decay, lr, early_stopping, deep_out, checkpoint, out_dir, decoder)
 
 
 def train(train_feats, 
@@ -90,6 +91,7 @@ def train(train_feats,
     weight_decay=WEIGHT_DECAY,
     lr=LEARNING_RATE,
     early_stopping=True,
+    deep_out=False,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
     decoder=None):
@@ -144,9 +146,10 @@ def train(train_feats,
         enc_seq_len=enc_seq_len,
         enc_dim=enc_dim,
         dropout_p=dropout_p,
+        deep_out=deep_out,
         decoder=decoder)
     net.to(DEVICE)
-
+    
     if checkpoint:
         net.load_state_dict(torch.load(checkpoint))
     

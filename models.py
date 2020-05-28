@@ -101,7 +101,7 @@ class AttentionDecoder(nn.Module):
 
 class AttentionDecoder_2(nn.Module):
 
-    def __init__(self, hid_dim, emb_dim, out_dim, key_dim, val_dim, attn_activation, dropout_p=0.1, **kwargs):
+    def __init__(self, hid_dim, emb_dim, out_dim, key_dim, val_dim, attn_activation, dropout_p=0.1, deep_out=False, **kwargs):
         super(AttentionDecoder_2, self).__init__()
         self.hid_dim = hid_dim
         self.emb_dim = emb_dim
@@ -114,8 +114,12 @@ class AttentionDecoder_2(nn.Module):
         self.attn_combine = nn.Linear(emb_dim + val_dim, hid_dim)
         self.gru = nn.GRU(hid_dim, hid_dim)
 
-        #self.out = DeepOutputLayer(out_dim, emb_dim, hid_dim, val_dim)
-        self.out = nn.Linear(hid_dim, out_dim)
+        if deep_out:
+            self.out = DeepOutputLayer(out_dim, emb_dim, hid_dim, val_dim)
+            self.deep_out = True
+        else:
+            self.out = nn.Linear(hid_dim, out_dim)
+            self.deep_out = False
         
         self.log_softmax = nn.LogSoftmax(dim=2)
 
@@ -129,6 +133,7 @@ class AttentionDecoder_2(nn.Module):
 
         o = self.embedding(input).squeeze(dim=2)
         o = self.dropout(o)
+        emb = o
 
         #q = torch.cat((hidden, o), dim=2).squeeze(0)
         # context, a = self.attention(Q=hidden.squeeze(dim=0), 
@@ -150,8 +155,10 @@ class AttentionDecoder_2(nn.Module):
         o, h = self.gru(o, hidden)
         #o = F.dropout(o, p=self.dropout_p)
 
-        #out = self.out(y=emb, h=hid, z=context)
-        o = self.out(o)
+        if self.deep_out:
+            o = self.out(y=emb, h=o, z=context)
+        else:
+            o = self.out(o)
         o = self.log_softmax(o)
 
         return o, h, a
@@ -174,6 +181,7 @@ class Network(nn.Module):
         pad_token,
         teacher_forcing_rat=0.2,
         dropout_p=0.1,
+        deep_out=False,
         attn_activation="relu",
         decoder=AttentionDecoder
         ):
@@ -196,6 +204,7 @@ class Network(nn.Module):
                         val_dim=enc_dim,
                         n_keys=enc_seq_len,
                         attn_activation=attn_activation,
+                        deep_out=deep_out,
                         dropout_p=dropout_p)
 
         self.decoder.to(device)
