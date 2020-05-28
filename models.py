@@ -200,12 +200,15 @@ class Network(nn.Module):
 
         self.decoder.to(device)
 
-    def forward(self, features, targets=None, max_len=10):
+    def forward(self, features, targets=None, max_len=10, teacher_forcing_rat=None):
         """
         Shapes:
             features: [batch_size, X, Y]
             targets: [max_len, batch_size, 1]
         """
+
+        if teacher_forcing_rat == None:
+            teacher_forcing_rat = self.teacher_forcing_rat
 
         # features : [batch, enc_seq_len, enc_dim]
         batch_size = features.size()[0]
@@ -224,7 +227,7 @@ class Network(nn.Module):
 
             _, topi = out.topk(1)
 
-            if random.random() < self.teacher_forcing_rat \
+            if random.random() < teacher_forcing_rat \
                 and targets is not None:
                 y = targets[i].unsqueeze(0) # teacher force
             else:

@@ -22,7 +22,8 @@ ENC_DIM = 512
 EPOCHS = 100
 BATCH_SIZE = 4
 CLIP_VAL = 1
-TEACHER_FORCE_RAT = 0.2
+TEACHER_FORCE_RAT = 0.95
+TEACHER_FORCE_END = None
 WEIGHT_DECAY=0.0
 LEARNING_RATE=0.001
 
@@ -44,6 +45,7 @@ def run(train_feats,
     enc_dim=ENC_DIM,
     clip_val=CLIP_VAL,
     teacher_force=TEACHER_FORCE_RAT,
+    teacher_force_end=TEACHER_FORCE_END,
     dropout_p=0.1,
     attn_activation="relu",
     epsilon=0.0005,
@@ -52,7 +54,7 @@ def run(train_feats,
     early_stopping=True,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
-    decoder=1):
+    decoder=2):
 
     if decoder == 1:
         decoder = models.AttentionDecoder
@@ -62,7 +64,7 @@ def run(train_feats,
     train(train_feats, train_caps, val_feats, val_caps, train_prefix, 
         val_prefix, epochs, batch_size, max_seq_len, hidden_dim, emb_dim,
         enc_seq_len, enc_dim, clip_val,
-        teacher_force, dropout_p, attn_activation, epsilon, 
+        teacher_force, teacher_force_end, dropout_p, attn_activation, epsilon, 
         weight_decay, lr, early_stopping, checkpoint, out_dir, decoder)
 
 
@@ -81,6 +83,7 @@ def train(train_feats,
     enc_dim=ENC_DIM,
     clip_val=CLIP_VAL,
     teacher_force=TEACHER_FORCE_RAT,
+    teacher_force_end=0.,
     dropout_p=0.1,
     attn_activation="relu",
     epsilon=0.0005,
@@ -175,10 +178,12 @@ def train(train_feats,
     for e in range(1, epochs + 1):
         print("Epoch ", e)
 
+        tfr = _teacher_froce(epochs, e, teacher_force, teacher_force_end)
+
         # train one epoch
         train_l, inst, steps, t, l_log, pen = train_epoch(model=net, loss_function=loss_function,
             optimizer=optimizer, data_iter=train_data, max_len=max_seq_len, clip_val=clip_val,
-            epsilon=epsilon)
+            epsilon=epsilon, teacher_forcing_rat=tfr)
         
         # epoch logs
         print("Training loss:\t", train_l)
@@ -259,7 +264,7 @@ def train(train_feats,
     print("EXPERIMENT END ", time.asctime())
 
 def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN, 
-    clip_val=CLIP_VAL, epsilon=0.0005):
+    clip_val=CLIP_VAL, epsilon=0.0005, teacher_forcing_rat=None):
     """Trains the model for one epoch.
 
     Returns:
@@ -285,7 +290,8 @@ def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN,
         optimizer.zero_grad()
         y, att_weights = model(features=inputs, 
             targets=targets, 
-            max_len=max_len)
+            max_len=max_len,
+            teacher_forcing_rat=teacher_forcing_rat)
         
         y = y.permute(1, 2, 0)
         targets = targets.squeeze(2).permute(1, 0)
@@ -431,6 +437,13 @@ def _write_loss_log(out_f, out_dir, log):
         for l in log:
             f.write("{0}\n".format(l))
 
+def _teacher_froce(total_epochs, epoch, teacher_forcing_start, teacher_forcing_end):
+    if teacher_forcing_end == None:
+        return teacher_forcing_start
+    
+    d = (teacher_forcing_start - teacher_forcing_end) / float(total_epochs)
+    tfr = teacher_forcing_start - (d * epoch)
+    return tfr
 
 if __name__ == "__main__":
     fire.Fire(run)
