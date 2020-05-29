@@ -52,7 +52,7 @@ def run(train_feats,
     weight_decay=WEIGHT_DECAY,
     lr=LEARNING_RATE,
     early_stopping=True,
-    scheduler=0,
+    scheduler="step",
     deep_out=False,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
@@ -92,7 +92,7 @@ def train(train_feats,
     weight_decay=WEIGHT_DECAY,
     lr=LEARNING_RATE,
     early_stopping=True,
-    scheduler=0,
+    scheduler="step",
     deep_out=False,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
@@ -456,9 +456,8 @@ def _teacher_froce(total_epochs, epoch, teacher_forcing_start, teacher_forcing_e
     return tfr
 
 def set_scheduler(scheduler, optimizer):
-    if scheduler == 1:
+    if scheduler == "step":
         return torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
-    
     return None
 
 
