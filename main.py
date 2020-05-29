@@ -52,6 +52,7 @@ def run(train_feats,
     weight_decay=WEIGHT_DECAY,
     lr=LEARNING_RATE,
     early_stopping=True,
+    scheduler=0,
     deep_out=False,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
@@ -66,7 +67,7 @@ def run(train_feats,
         val_prefix, epochs, batch_size, max_seq_len, hidden_dim, emb_dim,
         enc_seq_len, enc_dim, clip_val,
         teacher_force, teacher_force_end, dropout_p, attn_activation, epsilon, 
-        weight_decay, lr, early_stopping, deep_out, checkpoint, out_dir, decoder)
+        weight_decay, lr, early_stopping, scheduler, deep_out, checkpoint, out_dir, decoder)
 
 
 def train(train_feats, 
@@ -91,6 +92,7 @@ def train(train_feats,
     weight_decay=WEIGHT_DECAY,
     lr=LEARNING_RATE,
     early_stopping=True,
+    scheduler=0,
     deep_out=False,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
@@ -156,6 +158,8 @@ def train(train_feats,
     optimizer = torch.optim.Adam(net.parameters(), lr=lr, weight_decay=weight_decay)
     loss_function = nn.NLLLoss()
 
+    scheduler = set_scheduler(scheduler, optimizer)
+
     # 4. Train
 
     prev_val_l = sys.maxsize
@@ -187,6 +191,9 @@ def train(train_feats,
         train_l, inst, steps, t, l_log, pen = train_epoch(model=net, loss_function=loss_function,
             optimizer=optimizer, data_iter=train_data, max_len=max_seq_len, clip_val=clip_val,
             epsilon=epsilon, teacher_forcing_rat=tfr)
+
+        if scheduler is not None:
+            scheduler.step()
         
         # epoch logs
         print("Training loss:\t", train_l)
@@ -447,6 +454,13 @@ def _teacher_froce(total_epochs, epoch, teacher_forcing_start, teacher_forcing_e
     d = (teacher_forcing_start - teacher_forcing_end) / float(total_epochs)
     tfr = teacher_forcing_start - (d * epoch)
     return tfr
+
+def set_scheduler(scheduler, optimizer):
+    if scheduler == 1:
+        return torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+    
+    return None
+
 
 if __name__ == "__main__":
     fire.Fire(run)
