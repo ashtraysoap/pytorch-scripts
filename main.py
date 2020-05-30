@@ -15,7 +15,7 @@ from models import Network
 
 
 MAX_LEN = 20
-HIDDEN_DIM = 512
+HIDDEN_DIM = 1024
 EMB_DIM = 512
 ENC_SEQ_LEN = 14 * 14
 ENC_DIM = 512

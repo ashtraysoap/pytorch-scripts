@@ -11,94 +11,6 @@ from layers import DeepOutputLayer
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class Decoder(nn.Module):
-
-    def __init__(self, hid_dim, out_dim, dropout_p=0.1):
-        super(Decoder, self).__init__()
-        self.hid_dim = hid_dim
-        self.out_dim = out_dim
-        self.dropout_p = dropout_p
-
-        self.embedding = nn.Embedding(self.out_dim, self.hid_dim)
-        
-        self.gru = nn.GRU(hid_dim, hid_dim)
-        
-        self.out = nn.Linear(hid_dim, out_dim)
-        
-        self.log_softmax = nn.LogSoftmax(dim=2)
-
-    def forward(self, input, hidden):
-        o = self.embedding(input).squeeze(dim=2)
-        o = F.relu(o)
-        o, h = self.gru(o, hidden)
-        o = self.log_softmax(self.out(o))
-        return o, h
-
-    def initHidden(self, batch_size):
-        return torch.zeros(1, batch_size, self.hid_dim, device=device)
-
-class AttentionDecoder(nn.Module):
-
-    def __init__(self, hid_dim, out_dim, n_keys, key_dim, dropout_p=0.1, **kwargs):
-        super(AttentionDecoder, self).__init__()
-        self.hid_dim = hid_dim
-        self.out_dim = out_dim
-        self.n_keys = n_keys
-        self.key_dim = key_dim
-        self.dropout_p = dropout_p
-
-        self.embedding = nn.Embedding(self.out_dim, self.hid_dim)
-        
-        self.attn = nn.Linear(self.hid_dim * 2, n_keys)
-        self.attn_combine = nn.Linear(self.hid_dim + key_dim, self.hid_dim)
-        self.dropout = nn.Dropout(self.dropout_p)
-
-        self.gru = nn.GRU(hid_dim, hid_dim)
-        
-        self.out = nn.Linear(hid_dim, out_dim)
-        
-        self.log_softmax = nn.LogSoftmax(dim=2)
-
-    def forward(self, input, hidden, encoder_output):
-        """
-        Shapes:
-            input: [1, batch_size, 1] ([seq_len, batch, index])
-            hidden: [1, batch_size, hid_dim]
-            encoder_output: [batch_size, enc_dim[0], enc_dim[1]]
-        """
-
-        o = self.embedding(input).squeeze(dim=2)
-        o = self.dropout(o)
-
-        attn_input = torch.cat((o[0], hidden[0]), dim=1)
-
-        attn_energies = self.attn(attn_input)
-        attn_weights = F.softmax(attn_energies, dim=1)
-
-        attn_weights = attn_weights.unsqueeze(dim=1)
-        context = torch.bmm(attn_weights, encoder_output)
-        context = context.squeeze(dim=1)
-        a = attn_weights.squeeze(dim=1)
-        # context : [batch, enc_dim[1]]
-
-        o = torch.cat((o[0], context), dim=1)
-        # o : [batch, emd_dim + enc_dim[1]]
-        
-        o = self.attn_combine(o)
-        o = o.unsqueeze(0)
-
-        o = F.relu(o)
-        o, h = self.gru(o, hidden)
-
-        o = self.out(o)
-        o = self.log_softmax(o)
-        
-        return o, h, a
-
-    def initHidden(self, batch_size):
-        return torch.zeros(1, batch_size, self.hid_dim, device=device)
-
-
 class AttentionDecoder_1(nn.Module):
 
     def __init__(self, 
@@ -124,7 +36,7 @@ class AttentionDecoder_1(nn.Module):
         self.attention = attention(dim_k=key_dim, dim_q=hid_dim, hid_dim=hid_dim, 
                 dropout_p=dropout_p, activation=attn_activation)
         
-        self.gru = nn.GRU(hid_dim + key_dim, hid_dim)
+        self.gru = nn.GRU(emb_dim + key_dim, hid_dim)
 
         if deep_out:
             self.out = DeepOutputLayer(out_dim, emb_dim, hid_dim, val_dim)
@@ -267,7 +179,7 @@ class AttentionDecoder_3(nn.Module):
                 dropout_p=dropout_p, activation=attn_activation)
         
         self.attn_combine = nn.Linear(emb_dim + val_dim, hid_dim)
-        self.gru = nn.GRU(hid_dim, hid_dim)
+        self.gru = nn.GRU(emb_dim, hid_dim)
 
         if deep_out:
             self.out = DeepOutputLayer(out_dim, emb_dim, hid_dim, val_dim)
@@ -340,8 +252,8 @@ class AttentionDecoder_4(nn.Module):
         self.attention = attention(dim_k=key_dim, dim_q=hid_dim, hid_dim=hid_dim, 
                 dropout_p=dropout_p, activation=attn_activation)
         
-        self.attn_combine = nn.Linear(emb_dim + val_dim, hid_dim)
-        self.gru = nn.GRU(hid_dim * 2, hid_dim)
+        self.attn_combine = nn.Linear(hid_dim + val_dim, hid_dim)
+        self.gru = nn.GRU(hid_dim + emb_dim, hid_dim)
 
         if deep_out:
             self.out = DeepOutputLayer(out_dim, emb_dim, hid_dim, val_dim)
@@ -410,7 +322,7 @@ class Network(nn.Module):
         dropout_p=0.1,
         deep_out=False,
         attn_activation="relu",
-        decoder=AttentionDecoder,
+        decoder=AttentionDecoder_1,
         attention=AdditiveAttention
         ):
 
