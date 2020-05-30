@@ -178,7 +178,7 @@ class AttentionDecoder_3(nn.Module):
         self.attention = attention(dim_k=key_dim, dim_q=hid_dim, hid_dim=hid_dim, 
                 dropout_p=dropout_p, activation=attn_activation)
         
-        self.attn_combine = nn.Linear(emb_dim + val_dim, hid_dim)
+        self.attn_combine = nn.Linear(hid_dim + val_dim, hid_dim)
         self.gru = nn.GRU(emb_dim, hid_dim)
 
         if deep_out:
