@@ -8,10 +8,10 @@ import torch.nn as nn
 from vocab import Vocab
 import models
 from models import Network
-
+import attentions
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+print(DEVICE)
 
 MAX_LEN = 15
 HIDDEN_DIM = 512
@@ -32,12 +32,25 @@ def run(test_dir,
     enc_seq_len=ENC_SEQ_LEN,
     enc_dim=ENC_DIM,
     attn_activation="relu",
-    decoder=2):
+    deep_out=False,
+    decoder=4,
+    attention=3):
 
     if decoder == 1:
-        decoder = models.AttentionDecoder
+        decoder = models.AttentionDecoder_1
     elif decoder == 2:
         decoder = models.AttentionDecoder_2
+    elif decoder == 3:
+        decoder = models.AttentionDecoder_3
+    elif decoder == 4:
+        decoder = models.AttentionDecoder_4
+
+    if attention == 1:
+        attention = attentions.AdditiveAttention
+    elif attention == 2:
+        attention = attentions.GeneralAttention
+    elif attention == 3:
+        attention = attentions.ScaledGeneralAttention
 
     # load vocabulary
     vocabulary = Vocab()
@@ -53,6 +66,8 @@ def run(test_dir,
         emb_dim=emb_dim,
         enc_seq_len=enc_seq_len,
         enc_dim=enc_dim,
+        deep_out=deep_out,
+        attention=attention,
         decoder=decoder)
     net.to(DEVICE)
 
