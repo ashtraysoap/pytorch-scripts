@@ -9,12 +9,12 @@ import torch.nn as nn
 from data_loader import DataLoader
 from prepro import normalize_strings, filter_inputs
 from vocab import Vocab
-
+import attentions
 import models
 from models import Network
 
 
-MAX_LEN = 15
+MAX_LEN = 20
 HIDDEN_DIM = 512
 EMB_DIM = 512
 ENC_SEQ_LEN = 14 * 14
@@ -48,26 +48,39 @@ def run(train_feats,
     teacher_force_end=TEACHER_FORCE_END,
     dropout_p=0.1,
     attn_activation="relu",
-    epsilon=0.0005,
+    epsilon=0.0,
     weight_decay=WEIGHT_DECAY,
     lr=LEARNING_RATE,
-    early_stopping=True,
-    scheduler="step",
+    early_stopping=False,
+    scheduler=None,
+    attention=1,
     deep_out=False,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
     decoder=2):
 
     if decoder == 1:
-        decoder = models.AttentionDecoder
+        decoder = models.AttentionDecoder_1
     elif decoder == 2:
         decoder = models.AttentionDecoder_2
+    elif decoder == 3:
+        decoder = models.AttentionDecoder_3
+    elif decoder == 4:
+        decoder = models.AttentionDecoder_4
+
+
+    if attention == 1:
+        attention = attentions.AdditiveAttention
+    elif attention == 2:
+        attention = attentions.GeneralAttention
+    elif attention == 3:
+        attention = attentions.ScaledGeneralAttention
 
     train(train_feats, train_caps, val_feats, val_caps, train_prefix, 
         val_prefix, epochs, batch_size, max_seq_len, hidden_dim, emb_dim,
         enc_seq_len, enc_dim, clip_val,
         teacher_force, teacher_force_end, dropout_p, attn_activation, epsilon, 
-        weight_decay, lr, early_stopping, scheduler, deep_out, checkpoint, out_dir, decoder)
+        weight_decay, lr, early_stopping, scheduler, attention, deep_out, checkpoint, out_dir, decoder)
 
 
 def train(train_feats, 
@@ -93,6 +106,7 @@ def train(train_feats,
     lr=LEARNING_RATE,
     early_stopping=True,
     scheduler="step",
+    attention=None,
     deep_out=False,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
@@ -149,7 +163,8 @@ def train(train_feats,
         enc_dim=enc_dim,
         dropout_p=dropout_p,
         deep_out=deep_out,
-        decoder=decoder)
+        decoder=decoder,
+        attention=attention)
     net.to(DEVICE)
     
     if checkpoint:
