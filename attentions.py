@@ -1,3 +1,5 @@
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -61,14 +63,59 @@ class AdditiveAttention(nn.Module):
 
 
 
-class DotProductAttention(nn.Module):
+class GeneralAttention(nn.Module):
 
-    def __init__(self):
-        pass
+    def __init__(self, dim_q, dim_k, **kwargs):
+        super(GeneralAttention, self).__init__()
+
+        self.linear_k = nn.Linear(dim_k, dim_q)
 
     def forward(self, Q, K, V):
+        """Computes the 'general' attention function.
 
-    
-        weights = F.softmax(None, dim=1)
+        Args:
+            Q: queries of shape [batch, dim_q]
+            K: keys of shape [batch, n_keys, dim_k]
+            V: values of shape [batch, n_keys, dim_v]
+        """
+        
+        keys = self.linear_k(K)             # keys : [batch, n_keys, dim_q]
+        keys = keys.permute(0, 2, 1)
+        query = Q.unsqueeze(1)              # query: [batch, 1, dim_q]
+        energies = torch.bmm(query, keys)   # energies : [batch, 1, n_keys]
+        weights = F.softmax(energies, dim=2)
+        output = torch.bmm(weights, V)
 
-        return
+        weights = weights.squeeze(1)
+        output = output.squeeze(1)
+        return output, weights
+
+
+class ScaledGeneralAttention(nn.Module):
+
+    def __init__(self, dim_q, dim_k, **kwargs):
+        super(ScaledGeneralAttention, self).__init__()
+
+        self.linear_k = nn.Linear(dim_k, dim_q)
+        self.scale = 1 / math.pow(dim_k, 0.5)
+
+    def forward(self, Q, K, V):
+        """Computes the scaled 'general' attention function.
+
+        Args:
+            Q: queries of shape [batch, dim_q]
+            K: keys of shape [batch, n_keys, dim_k]
+            V: values of shape [batch, n_keys, dim_v]
+        """
+        
+        keys = self.linear_k(K)             # keys : [batch, n_keys, dim_q]
+        keys = keys.permute(0, 2, 1)
+        query = Q.unsqueeze(1)              # query: [batch, 1, dim_q]
+        energies = torch.bmm(query, keys)   # energies : [batch, 1, n_keys]
+        energies = energies * self.scale
+        weights = F.softmax(energies, dim=2)
+        output = torch.bmm(weights, V)
+
+        weights = weights.squeeze(1)
+        output = output.squeeze(1)
+        return output, weights
