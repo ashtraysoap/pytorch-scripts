@@ -358,7 +358,7 @@ def evaluate(model, loss_function, data_iter, max_len=MAX_LEN, epsilon=0.0005):
         for batch in data_iter:
             i, t, batch_size = batch
             i, t = i.to(DEVICE), t.to(DEVICE)
-            y, att_w = model(i, t, max_len=max_len)
+            y, att_w = model(i, None, max_len=max_len)
             y = y.permute(1, 2, 0)
             t = t.squeeze(2).permute(1, 0)
         
