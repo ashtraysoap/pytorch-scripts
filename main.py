@@ -200,7 +200,7 @@ def train(train_feats,
     for e in range(1, epochs + 1):
         print("Epoch ", e)
 
-        tfr = _teacher_froce(epochs, e, teacher_force, teacher_force_end)
+        tfr = _teacher_force(epochs, e, teacher_force, teacher_force_end)
 
         # train one epoch
         train_l, inst, steps, t, l_log, pen = train_epoch(model=net, loss_function=loss_function,
@@ -321,7 +321,6 @@ def train_epoch(model, loss_function, optimizer, data_iter, max_len=MAX_LEN,
         y = y.permute(1, 2, 0)
         targets = targets.squeeze(2).permute(1, 0)
         
-        #loss = loss_function(input=y, target=targets)
         loss, penalty = loss_func(loss_function, y, targets, att_weights, epsilon)
         loss.backward()
 
@@ -363,7 +362,6 @@ def evaluate(model, loss_function, data_iter, max_len=MAX_LEN, epsilon=0.0005):
             t = t.squeeze(2).permute(1, 0)
         
             l, _ = loss_func(loss_function, y, t, att_w, epsilon)
-            #l = loss_function(input=y, target=t).item()
 
             loss += l.item()
             loss_log.append(l.item() / batch_size)
@@ -462,7 +460,16 @@ def _write_loss_log(out_f, out_dir, log):
         for l in log:
             f.write("{0}\n".format(l))
 
-def _teacher_froce(total_epochs, epoch, teacher_forcing_start, teacher_forcing_end):
+def _teacher_force(total_epochs, epoch, teacher_forcing_start, teacher_forcing_end):
+    d = total_epochs // 5
+    if epoch <= d:
+        return 1.0
+    elif epoch > total_epochs - d:
+        return 0.0
+    else:
+        return 1 - ((1.0 / (total_epochs - 2 * d + 1)) * (epoch - d))
+
+
     if teacher_forcing_end == None:
         return teacher_forcing_start
     
