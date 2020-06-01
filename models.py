@@ -353,7 +353,7 @@ class Network(nn.Module):
 
         self.decoder.to(device)
 
-    def forward(self, features, targets=None, max_len=10, teacher_forcing_rat=None):
+    def forward(self, features, targets=None, max_len=10, teacher_forcing_rat=1.0):
         """
         Shapes:
             features: [batch_size, X, Y]

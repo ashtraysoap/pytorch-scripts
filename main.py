@@ -22,8 +22,7 @@ ENC_DIM = 512
 EPOCHS = 100
 BATCH_SIZE = 4
 CLIP_VAL = 1
-TEACHER_FORCE_RAT = 0.95
-TEACHER_FORCE_END = None
+TEACHER_FORCE_RAT = 1
 WEIGHT_DECAY=0.0
 LEARNING_RATE=0.001
 
@@ -45,7 +44,6 @@ def run(train_feats,
     enc_dim=ENC_DIM,
     clip_val=CLIP_VAL,
     teacher_force=TEACHER_FORCE_RAT,
-    teacher_force_end=TEACHER_FORCE_END,
     dropout_p=0.1,
     attn_activation="relu",
     epsilon=0.0,
@@ -79,7 +77,7 @@ def run(train_feats,
     train(train_feats, train_caps, val_feats, val_caps, train_prefix, 
         val_prefix, epochs, batch_size, max_seq_len, hidden_dim, emb_dim,
         enc_seq_len, enc_dim, clip_val,
-        teacher_force, teacher_force_end, dropout_p, attn_activation, epsilon, 
+        teacher_force, dropout_p, attn_activation, epsilon, 
         weight_decay, lr, early_stopping, scheduler, attention, deep_out, checkpoint, out_dir, decoder)
 
 
@@ -98,7 +96,6 @@ def train(train_feats,
     enc_dim=ENC_DIM,
     clip_val=CLIP_VAL,
     teacher_force=TEACHER_FORCE_RAT,
-    teacher_force_end=0.,
     dropout_p=0.1,
     attn_activation="relu",
     epsilon=0.0005,
@@ -111,7 +108,7 @@ def train(train_feats,
     checkpoint="",
     out_dir="Pytorch_Exp_Out",
     decoder=None):
-    
+
     print("EXPERIMENT START ", time.asctime())
 
     if not os.path.exists(out_dir):
@@ -200,7 +197,7 @@ def train(train_feats,
     for e in range(1, epochs + 1):
         print("Epoch ", e)
 
-        tfr = _teacher_force(epochs, e, teacher_force, teacher_force_end)
+        tfr = _teacher_force(epochs, e, teacher_force)
 
         # train one epoch
         train_l, inst, steps, t, l_log, pen = train_epoch(model=net, loss_function=loss_function,
@@ -460,7 +457,9 @@ def _write_loss_log(out_f, out_dir, log):
         for l in log:
             f.write("{0}\n".format(l))
 
-def _teacher_force(total_epochs, epoch, teacher_forcing_start, teacher_forcing_end):
+def _teacher_force(total_epochs, epoch, teacher_forcing_ratio):
+    return teacher_forcing_ratio
+
     d = total_epochs // 5
     if epoch <= d:
         return 1.0
@@ -468,14 +467,6 @@ def _teacher_force(total_epochs, epoch, teacher_forcing_start, teacher_forcing_e
         return 0.0
     else:
         return 1 - ((1.0 / (total_epochs - 2 * d + 1)) * (epoch - d))
-
-
-    if teacher_forcing_end == None:
-        return teacher_forcing_start
-    
-    d = (teacher_forcing_start - teacher_forcing_end) / float(total_epochs)
-    tfr = teacher_forcing_start - (d * epoch)
-    return tfr
 
 def set_scheduler(scheduler, optimizer):
     if scheduler == "step":
