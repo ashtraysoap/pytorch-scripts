@@ -12,10 +12,11 @@ from vocab import Vocab
 import attentions
 import models
 from models import Network
+from bleu import compute_bleu
 
 
 MAX_LEN = 20
-HIDDEN_DIM = 1024
+HIDDEN_DIM = 512
 EMB_DIM = 512
 ENC_SEQ_LEN = 14 * 14
 ENC_DIM = 512
@@ -182,6 +183,8 @@ def train(train_feats,
     train_penalty_log = []
     val_loss_log = []
     val_loss_log_batches = []
+    val_bleu_log = []
+    prev_bleu = sys.maxsize
 
     train_data = DataLoader(captions=map(lambda x: x[0], train_data),
         sources=map(lambda x: x[1], train_data), batch_size=batch_size, 
@@ -190,7 +193,7 @@ def train(train_feats,
     if val_caps:
         val_data = DataLoader(captions=map(lambda x: x[0], val_data),
             sources=map(lambda x: x[1], val_data), batch_size=batch_size, 
-            vocab=vocab, max_seq_len=max_seq_len)
+            vocab=vocab, max_seq_len=max_seq_len, val_multiref=True)
 
     training_start_time = time.time()
 
@@ -225,14 +228,16 @@ def train(train_feats,
 
         # evaluate
         if val_caps:
-            val_l, l_log = evaluate(model=net, loss_function=loss_function, 
+            val_l, l_log, bleu = evaluate(model=net, loss_function=loss_function, 
                 data_iter=val_data, max_len=max_seq_len, epsilon=epsilon)
 
             # validation logs
             print("Validation loss: ", val_l)
-            if val_l < prev_val_l:
+            print("Validation BLEU-4: ", bleu)
+            if bleu > prev_bleu:
                 torch.save(net.state_dict(), os.path.join(out_dir, 'net.pt'))
             val_loss_log.append(val_l)
+            val_bleu_log.append(bleu)
             val_loss_log_batches += l_log
 
 
@@ -245,23 +250,24 @@ def train(train_feats,
             print("Predicted:\t", s)
             print()
 
-        if val_caps:
-            print("Sampling validation data...")
-            print()
-            samples = sample(net, val_data, vocab, samples=3, max_len=max_seq_len)
-            for t, s in samples:
-                print("Target:\t", t)
-                print("Predicted:\t", s)
-                print()
+        # if val_caps:
+        #     print("Sampling validation data...")
+        #     print()
+        #     samples = sample(net, val_data, vocab, samples=3, max_len=max_seq_len)
+        #     for t, s in samples:
+        #         print("Target:\t", t)
+        #         print("Predicted:\t", s)
+        #         print()
 
         if val_caps:
             # If the validation loss after this epoch increased from the
             # previous epoch, wrap training.
-            if prev_val_l < val_l and early_stopping:
+            if prev_bleu > bleu and early_stopping:
                 print("\nWrapping training after {0} epochs.\n".format(e + 1))
                 break
 
             prev_val_l = val_l
+            prev_bleu = bleu
 
 
 
@@ -347,24 +353,50 @@ def evaluate(model, loss_function, data_iter, max_len=MAX_LEN, epsilon=0.0005):
     loss_log = []
     num_instances = 0
 
+    captions = []
+    references = []
+
     with torch.no_grad():
         # set the network to evaluation mode
         model.eval()
     
         for batch in data_iter:
             i, t, batch_size = batch
-            i, t = i.to(DEVICE), t.to(DEVICE)
+
+            # process images
+            i = i.to(DEVICE)
             y, att_w = model(i, None, max_len=max_len)
             y = y.permute(1, 2, 0)
-            t = t.squeeze(2).permute(1, 0)
+
+            # compute loss
+            if not isinstance(t, list):
+                t = [t]
+            tl = 0
+            for j in range(len(t)):
+                t[j] = t[j].to(DEVICE)            
+                t[j] = t[j].squeeze(2).permute(1, 0)
         
-            l, _ = loss_func(loss_function, y, t, att_w, epsilon)
+                l, _ = loss_func(loss_function, y, t[j], att_w, epsilon)
+                tl += l.item()
+                t[j] = t[j].detach()
+                num_instances += batch_size
 
-            loss += l.item()
-            loss_log.append(l.item() / batch_size)
-            num_instances += batch_size
+            loss_log.append(tl / (batch_size * len(t)))
+            loss += tl
 
-    return (loss / num_instances), loss_log
+            # decode
+            y = y.permute(0, 2, 1)
+            _, topi = y.topk(1, dim=2)
+            topi = topi.detach().squeeze(2)
+            
+            for j in range(batch_size):
+                captions.append(data_iter.vocab.tensor_to_sentence(topi[j]))
+                references.append([])
+                for k in t:
+                    references[-1].append(data_iter.vocab.tensor_to_sentence(k[j]))
+
+    bleu = compute_bleu(reference_corpus=references, translation_corpus=captions)[0]
+    return (loss / num_instances), loss_log, bleu
 
 def sample(model, data_iter, vocab, samples=1, max_len=MAX_LEN, shuffle=True):
     """Samples from the model.
@@ -385,7 +417,7 @@ def sample(model, data_iter, vocab, samples=1, max_len=MAX_LEN, shuffle=True):
 
         for batch in data_iter:
             inputs, targets, batch_size = batch
-            inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
+            inputs = inputs.to(DEVICE)
 
             y, _ = model(features=inputs, targets=None, max_len=max_len)
             # y : [max_len, batch, vocab_dim]

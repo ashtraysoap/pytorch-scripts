@@ -17,7 +17,8 @@ class DataLoader:
         sources_prefix="", 
         vocab=None,
         max_seq_len=None,
-        shuffle=True
+        shuffle=True,
+        val_multiref=False
     ):
         
         captions = list(captions)
@@ -34,33 +35,59 @@ class DataLoader:
         self.vocab = vocab
         self.max_seq_len = max_seq_len
         self.shuffle = shuffle
+        self.val_multiref = val_multiref
         self._count = len(sources)
 
+
     def __iter__(self):
-        if self.shuffle == True:
+        if self.val_multiref == True:
             pairs = list(zip(self.sources, self.captions))
+            pairs = group_captions(pairs)
+            sources, captions = list(zip(*pairs))
+            sources, captions = list(sources), list(captions)
+            self._count = len(sources)
+        else:
+            sources, captions = self.sources, self.captions
+
+        if self.shuffle == True:
+            pairs = list(zip(sources, captions))
             random.shuffle(pairs)
             sources, captions = [], []
             for s, c in pairs:
                 sources.append(s)
                 captions.append(c)
-        else:
-            sources, captions = self.sources, self.captions
 
         counter = 0
         while counter < self._count:
             upper_bound = min(self._count, counter + self.batch_size)
+
             srcs = sources[counter : upper_bound]
             xs = [_load_input_data(s) for s in srcs]
             xs = [_reshape(x) for x in xs]
             xs = [torch.from_numpy(x) for x in xs]
             xs = torch.stack(xs, dim=0)
+            
             ys = captions[counter : upper_bound]
+            if self.val_multiref:
+                ys = list(zip(*ys))
+                ys = [list(y) for y in ys]
+            
             num_instances = len(xs)
+            
             if self.vocab is not None:
-                ys = [self.vocab.sentence_to_tensor(y, self.max_seq_len) for y in ys]
-                ys = torch.stack(ys, dim=0)
-                ys = ys.permute(1, 0, 2)
+                if not self.val_multiref:
+                    ys = [self.vocab.sentence_to_tensor(y, self.max_seq_len) for y in ys]
+                    ys = torch.stack(ys, dim=0)
+                    ys = ys.permute(1, 0, 2)
+                else:
+                    yz = []
+                    for y in ys:
+                        y = [self.vocab.sentence_to_tensor(z, self.max_seq_len) for z in y]
+                        y = torch.stack(y, dim=0)
+                        y = y.permute(1, 0, 2)
+                        yz.append(y)
+                    ys = yz
+            
             yield (xs, ys, num_instances)
             counter = upper_bound
 
@@ -84,6 +111,17 @@ def _reshape(x):
         return np.reshape(x, (-1, dim))
     
     raise NotImplementedError("Incorrectly shaped array given.")
+
+def group_captions(pairs):
+    d = {}
+
+    for (src, cap) in pairs:
+        if src in d:
+            d[src].append(cap)
+        else:
+            d[src] = [cap]
+
+    return d.items()
 
 if __name__ == "__main__":
     sources = open("data/feats.txt").read().strip().split('\n')
