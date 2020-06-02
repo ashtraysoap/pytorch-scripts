@@ -288,6 +288,7 @@ def train(train_feats,
     if val_caps:
         _write_loss_log("val_loss_log.txt", out_dir, val_loss_log)
         _write_loss_log("val_loss_log_batches.txt", out_dir, val_loss_log_batches)
+        _write_loss_log("val_bleu4_log.txt", out_dir, val_bleu_log)
 
     print("EXPERIMENT END ", time.asctime())
 
